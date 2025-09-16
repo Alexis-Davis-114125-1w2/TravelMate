@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../hooks/useAuth';
-import { validateForm, loginValidationRules, ValidationErrors } from '../utils/validation';
+import { validateForm, loginValidationRules, registerValidationRules, ValidationErrors } from '../utils/validation';
+import { API_BASE_URL } from '../lib/api';
 
 export default function LoginForm() {
   const [formData, setFormData] = useState({
+    name: '',
     email: '',
     password: ''
   });
@@ -14,7 +16,7 @@ export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('login');
   
-  const { login } = useAuth();
+  const { login, register } = useAuth();
   const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,7 +38,8 @@ export default function LoginForm() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    const validationErrors = validateForm(formData, loginValidationRules);
+    const validationRules = activeTab === 'login' ? loginValidationRules : registerValidationRules;
+    const validationErrors = validateForm(formData, validationRules);
     
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -45,22 +48,37 @@ export default function LoginForm() {
     }
 
     try {
-      const success = await login(formData.email, formData.password);
+      let success = false;
+      
+      if (activeTab === 'login') {
+        success = await login(formData.email, formData.password);
+      } else {
+        success = await register(formData.name, formData.email, formData.password);
+      }
       
       if (success) {
         router.push('/dashboard');
       } else {
         setErrors({
-          general: 'Credenciales inválidas. Por favor verifica tu email y contraseña.'
+          general: activeTab === 'login' 
+            ? 'Credenciales inválidas. Por favor verifica tu email y contraseña.'
+            : 'Error al registrarse. El email puede estar en uso.'
         });
       }
     } catch (error) {
       setErrors({
-        general: 'Error al iniciar sesión. Por favor intenta de nuevo.'
+        general: activeTab === 'login' 
+          ? 'Error al iniciar sesión. Por favor intenta de nuevo.'
+          : 'Error al registrarse. Por favor intenta de nuevo.'
       });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleGoogleLogin = () => {
+    // Redirigir al endpoint de OAuth2 de Google
+    window.location.href = `${API_BASE_URL}/oauth2/authorization/google`;
   };
 
   return (
@@ -107,11 +125,27 @@ export default function LoginForm() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {activeTab === 'register' && (
+              <div>
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Nombre completo"
+                  value={formData.name}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:border-orange-400 focus:outline-none transition-colors text-gray-800 placeholder-gray-500"
+                />
+                {errors.name && (
+                  <p className="mt-1 text-sm text-red-500">{errors.name}</p>
+                )}
+              </div>
+            )}
+            
             <div>
               <input
                 type="email"
                 name="email"
-                placeholder="Usuario"
+                placeholder="Email"
                 value={formData.email}
                 onChange={handleChange}
                 className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:border-orange-400 focus:outline-none transition-colors text-gray-800 placeholder-gray-500"
@@ -152,10 +186,10 @@ export default function LoginForm() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Entrando...
+                  {activeTab === 'login' ? 'Entrando...' : 'Registrando...'}
                 </div>
               ) : (
-                'Entrar'
+                activeTab === 'login' ? 'Entrar' : 'Registrarse'
               )}
             </button>
           </form>
@@ -172,16 +206,11 @@ export default function LoginForm() {
           <div className="mt-8">
             <p className="text-center text-sm text-gray-500 mb-4">O entra con:</p>
             <div className="flex justify-center space-x-4">
-              <button className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-colors">
+              <button 
+                onClick={handleGoogleLogin}
+                className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-colors"
+              >
                 <span className="font-bold text-lg">G</span>
-              </button>
-              <button className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white hover:bg-blue-700 transition-colors">
-                <span className="font-bold text-lg">f</span>
-              </button>
-              <button className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center text-white hover:bg-gray-900 transition-colors">
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-                </svg>
               </button>
             </div>
           </div>

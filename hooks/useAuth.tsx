@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { api } from '../lib/api';
 
 export interface User {
   id: string;
@@ -11,6 +12,7 @@ export interface User {
 export interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
   isAuthenticated: boolean;
@@ -55,24 +57,71 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      if (email && password) {
-        const mockUser: User = {
-          id: '1',
-          email: email,
-          name: email.split('@')[0]
-        };
+      const response = await api.login(email, password);
 
-        const mockToken = 'mock-jwt-token-' + Date.now();
+      if (response.ok) {
+        const data = await response.json();
         
-        localStorage.setItem('authToken', mockToken);
-        localStorage.setItem('userData', JSON.stringify(mockUser));
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('userData', JSON.stringify({
+          id: data.id,
+          email: data.email,
+          name: data.name,
+          profilePictureUrl: data.profilePictureUrl,
+          provider: data.provider
+        }));
         
-        setUser(mockUser);
+        setUser({
+          id: data.id.toString(),
+          email: data.email,
+          name: data.name,
+          profilePictureUrl: data.profilePictureUrl
+        });
         return true;
+      } else {
+        const errorData = await response.json();
+        console.error('Error en login:', errorData.message);
+        return false;
       }
-      return false;
     } catch (error) {
       console.error('Error en login:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (name: string, email: string, password: string): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      const response = await api.register(name, email, password);
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('userData', JSON.stringify({
+          id: data.id,
+          email: data.email,
+          name: data.name,
+          profilePictureUrl: data.profilePictureUrl,
+          provider: data.provider
+        }));
+        
+        setUser({
+          id: data.id.toString(),
+          email: data.email,
+          name: data.name,
+          profilePictureUrl: data.profilePictureUrl
+        });
+        return true;
+      } else {
+        const errorData = await response.json();
+        console.error('Error en registro:', errorData.message);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error en registro:', error);
       return false;
     } finally {
       setIsLoading(false);
@@ -88,6 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const value: AuthContextType = {
     user,
     login,
+    register,
     logout,
     isLoading,
     isAuthenticated: !!user

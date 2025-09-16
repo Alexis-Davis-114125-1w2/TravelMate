@@ -81,3 +81,40 @@ export const loginValidationRules = {
     }
   }
 };
+
+export const registerValidationRules = {
+  name: {
+    required: true,
+    minLength: 2,
+    maxLength: 50,
+    custom: (value: string) => {
+      if (value.length < 2) {
+        return 'El nombre debe tener al menos 2 caracteres';
+      }
+      if (value.length > 50) {
+        return 'El nombre no puede tener más de 50 caracteres';
+      }
+      return null;
+    }
+  },
+  email: {
+    required: true,
+    pattern: emailPattern,
+    custom: (value: string) => {
+      if (!emailPattern.test(value)) {
+        return 'Por favor ingresa un email válido';
+      }
+      return null;
+    }
+  },
+  password: {
+    required: true,
+    minLength: passwordMinLength,
+    custom: (value: string) => {
+      if (value.length < passwordMinLength) {
+        return `La contraseña debe tener al menos ${passwordMinLength} caracteres`;
+      }
+      return null;
+    }
+  }
+};
