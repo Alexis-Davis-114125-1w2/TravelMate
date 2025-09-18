@@ -173,7 +173,9 @@ export default function DashboardPage() {
       <main className="max-w-6xl mx-auto">
         {/* Create New Trip Button */}
         <div className="mb-8 animate-slide-in" style={{animationDelay: '0.2s'}}>
-          <button className="w-full glass-card hover:scale-105 transition-all duration-300 group">
+          <button
+           onClick={()=>router.push("travel")}
+           className="w-full glass-card hover:scale-105 transition-all duration-300 group">
             <div className="flex items-center justify-center space-x-4 py-6">
               <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
