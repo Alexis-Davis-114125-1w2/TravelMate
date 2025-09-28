@@ -4,6 +4,46 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Trip } from '../../../../types/trip';
+import {
+  Box,
+  Container,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  CardActions,
+  Button,
+  AppBar,
+  Toolbar,
+  IconButton,
+  Chip,
+  Avatar,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  Paper,
+  Divider,
+  CircularProgress,
+  Backdrop,
+} from '@mui/material';
+import {
+  ArrowBack,
+  TravelExplore,
+  CheckCircle,
+  CalendarToday,
+  LocationOn,
+  People,
+  AttachMoney,
+  TrendingUp,
+  WbSunny,
+  Landscape,
+  LocationCity,
+  Schedule,
+  Assignment,
+  Museum,
+  DirectionsBoat,
+} from '@mui/icons-material';
 
 export default function TripStatsPage({ params }: { params: Promise<{ id: string }> }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -104,20 +144,12 @@ export default function TripStatsPage({ params }: { params: Promise<{ id: string
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="glass-card text-center animate-slide-in">
-          <div className="w-16 h-16 mx-auto mb-6 relative">
-            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 animate-pulse-glow"></div>
-            <div className="absolute inset-2 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-              <svg className="w-8 h-8 text-white animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </div>
-          </div>
-          <h2 className="text-3xl font-bold gradient-text mb-2">TravelMate</h2>
-          <p className="text-white/80">Cargando estadísticas...</p>
-        </div>
-      </div>
+      <Backdrop open={true} sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+        <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
+          <CircularProgress color="inherit" size={60} />
+          <Typography variant="h6">Cargando estadísticas del viaje...</Typography>
+        </Box>
+      </Backdrop>
     );
   }
 
@@ -133,222 +165,272 @@ export default function TripStatsPage({ params }: { params: Promise<{ id: string
   const getIcon = (image: string) => {
     switch (image) {
       case 'sun':
-        return (
-          <div className="w-20 h-20 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
-            <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z"/>
-            </svg>
-          </div>
-        );
+        return <WbSunny sx={{ fontSize: 50 }} />;
       case 'mountain':
-        return (
-          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg">
-            <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8.25 6.75a3.75 3.75 0 117.5 0 3.75 3.75 0 01-7.5 0zM15.75 9.75a3 3 0 116 0 3 3 0 01-6 0zM2.25 9.75a3 3 0 116 0 3 3 0 01-6 0zM6.75 8.25a.75.75 0 00-1.5 0v2.25c0 .414.336.75.75.75h2.25a.75.75 0 000-1.5H8.25V8.25zM6 12.75a.75.75 0 01.75-.75h3a.75.75 0 010 1.5H9v1.5a.75.75 0 01-1.5 0v-2.25zM18.75 16.5a.75.75 0 00-1.5 0V18a.75.75 0 01-.75.75h-2.25a.75.75 0 000 1.5H18a.75.75 0 00.75-.75v-1.5zM17.25 7.5a.75.75 0 01-.75.75h-2.25a.75.75 0 000-1.5H16.5a.75.75 0 01.75.75z"/>
-            </svg>
-          </div>
-        );
+        return <Landscape sx={{ fontSize: 50 }} />;
       case 'city':
-        return (
-          <div className="w-20 h-20 bg-gradient-to-r from-gray-600 to-gray-800 rounded-2xl flex items-center justify-center shadow-lg">
-            <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M3.75 21h16.5M4.5 3h15l-.75 18h-13.5L4.5 3zM9 9.75h1.5v4.5H9v-4.5zM13.5 9.75H15v4.5h-1.5v-4.5zM6 9.75h1.5v4.5H6v-4.5zM18 9.75h1.5v4.5H18v-4.5z"/>
-            </svg>
-          </div>
-        );
+        return <LocationCity sx={{ fontSize: 50 }} />;
       default:
-        return (
-          <div className="w-20 h-20 bg-gradient-to-r from-gray-400 to-gray-600 rounded-2xl flex items-center justify-center shadow-lg">
-            <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z"/>
-            </svg>
-          </div>
-        );
+        return <TravelExplore sx={{ fontSize: 50 }} />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'success';
+      case 'planning':
+        return 'primary';
+      case 'active':
+        return 'warning';
+      default:
+        return 'default';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'Completado';
+      case 'planning':
+        return 'Planificando';
+      case 'active':
+        return 'En curso';
+      default:
+        return status;
     }
   };
 
   return (
-    <div className="min-h-screen p-4">
-      {/* Header */}
-      <header className="glass-card mb-8 animate-slide-in">
-        <div className="flex items-center space-x-4">
-          <button
+    <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
+      {/* App Bar */}
+      <AppBar position="static" elevation={0} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
+        <Toolbar>
+          <IconButton
+            edge="start"
+            color="inherit"
             onClick={() => router.back()}
-            className="glass-button p-3 hover:scale-105 transition-all duration-300"
+            sx={{ mr: 2 }}
           >
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold gradient-text">Estadísticas del Viaje</h1>
-            <p className="text-white/70">Análisis detallado de tu aventura</p>
-          </div>
-        </div>
-      </header>
+            <ArrowBack />
+          </IconButton>
+          <Typography variant="h5" component="h1" sx={{ flexGrow: 1, fontWeight: 600 }}>
+            Estadísticas del Viaje
+          </Typography>
+        </Toolbar>
+      </AppBar>
 
-      <main className="max-w-6xl mx-auto">
+      <Container maxWidth="lg" sx={{ py: 4 }}>
         {/* Trip Info */}
-        <div className="glass-card mb-8 animate-slide-in" style={{animationDelay: '0.2s'}}>
-          <div className="flex items-center space-x-6">
+        <Card sx={{ mb: 4 }}>
+          <CardContent>
+            <Box display="flex" alignItems="center" gap={3}>
+              <Avatar sx={{ bgcolor: 'primary.main', width: 80, height: 80 }}>
             {getIcon(trip.image || 'default')}
-            <div className="flex-1">
-              <h2 className="text-3xl font-bold text-white mb-2">{trip.name}</h2>
-              <p className="text-white/80 text-lg mb-2">{trip.destination}</p>
-              <div className="flex items-center space-x-4 text-white/70">
-                <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <span>{formatDate(trip.startDate)} - {formatDate(trip.endDate)}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                  </svg>
-                  <span>{trip.participants} participantes</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+              </Avatar>
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography variant="h4" component="h2" sx={{ fontWeight: 600, mb: 1 }}>
+                  {trip.name}
+                </Typography>
+                <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+                  {trip.destination}
+                </Typography>
+                <Box display="flex" alignItems="center" gap={4}>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <CalendarToday sx={{ fontSize: 20, color: 'text.secondary' }} />
+                    <Typography variant="body2" color="text.secondary">
+                      {formatDate(trip.startDate)} - {formatDate(trip.endDate)}
+                    </Typography>
+                  </Box>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <People sx={{ fontSize: 20, color: 'text.secondary' }} />
+                    <Typography variant="body2" color="text.secondary">
+                      {trip.participants} participantes
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={getStatusLabel(trip.status)}
+                    color={getStatusColor(trip.status) as any}
+                    size="medium"
+                  />
+                </Box>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          <div className="glass-card animate-slide-in" style={{animationDelay: '0.3s'}}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-white/70 text-sm font-medium mb-2">Participantes</p>
-                <p className="text-4xl font-bold text-white">{trip.participants}</p>
-              </div>
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 4 }}>
+          <Box sx={{ flex: '1 1 250px', minWidth: 250 }}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom variant="body2">
+                      Participantes
+                    </Typography>
+                    <Typography variant="h4" component="div" sx={{ fontWeight: 600 }}>
+                      {trip.participants}
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
+                    <People />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
 
-          <div className="glass-card animate-slide-in" style={{animationDelay: '0.4s'}}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-white/70 text-sm font-medium mb-2">Duración</p>
-                <p className="text-4xl font-bold text-white">7 días</p>
-              </div>
-              <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-teal-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-            </div>
-          </div>
+          <Box sx={{ flex: '1 1 250px', minWidth: 250 }}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom variant="body2">
+                      Duración
+                    </Typography>
+                    <Typography variant="h4" component="div" sx={{ fontWeight: 600, color: 'success.main' }}>
+                      7 días
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'success.main', width: 56, height: 56 }}>
+                    <Schedule />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
 
-          <div className="glass-card animate-slide-in" style={{animationDelay: '0.5s'}}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-white/70 text-sm font-medium mb-2">Estado</p>
-                <p className="text-2xl font-bold text-white capitalize">{trip.status === 'completed' ? 'Completado' : trip.status === 'planning' ? 'Planificando' : trip.status}</p>
-              </div>
-              <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
+          <Box sx={{ flex: '1 1 250px', minWidth: 250 }}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom variant="body2">
+                      Estado
+                    </Typography>
+                    <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
+                      {getStatusLabel(trip.status)}
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'warning.main', width: 56, height: 56 }}>
+                    <CheckCircle />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
 
-          <div className="glass-card animate-slide-in" style={{animationDelay: '0.6s'}}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-white/70 text-sm font-medium mb-2">Gasto Total</p>
-                <p className="text-4xl font-bold text-white">$4,200</p>
-              </div>
-              <div className="w-16 h-16 bg-gradient-to-r from-red-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                </svg>
-              </div>
-            </div>
-          </div>
+          <Box sx={{ flex: '1 1 250px', minWidth: 250 }}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom variant="body2">
+                      Gasto Total
+                    </Typography>
+                    <Typography variant="h4" component="div" sx={{ fontWeight: 600, color: 'error.main' }}>
+                      $4,200
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'error.main', width: 56, height: 56 }}>
+                    <AttachMoney />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
 
-          <div className="glass-card animate-slide-in" style={{animationDelay: '0.7s'}}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-white/70 text-sm font-medium mb-2">Gasto por Persona</p>
-                <p className="text-4xl font-bold text-white">$1,050</p>
-              </div>
-              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-            </div>
-          </div>
+          <Box sx={{ flex: '1 1 250px', minWidth: 250 }}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom variant="body2">
+                      Gasto por Persona
+                    </Typography>
+                    <Typography variant="h4" component="div" sx={{ fontWeight: 600, color: 'secondary.main' }}>
+                      $1,050
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'secondary.main', width: 56, height: 56 }}>
+                    <TrendingUp />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
 
-          <div className="glass-card animate-slide-in" style={{animationDelay: '0.8s'}}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-white/70 text-sm font-medium mb-2">Actividades</p>
-                <p className="text-4xl font-bold text-white">12</p>
-              </div>
-              <div className="w-16 h-16 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
+          <Box sx={{ flex: '1 1 250px', minWidth: 250 }}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom variant="body2">
+                      Actividades
+                    </Typography>
+                    <Typography variant="h4" component="div" sx={{ fontWeight: 600, color: 'info.main' }}>
+                      12
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'info.main', width: 56, height: 56 }}>
+                    <Assignment />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
+        </Box>
 
         {/* Activities */}
-        <div className="glass-card animate-slide-in" style={{animationDelay: '0.9s'}}>
-          <h3 className="text-2xl font-bold text-white mb-6">Actividades del Viaje</h3>
-          <div className="space-y-4">
-            <div className="glass rounded-xl p-4 hover:scale-105 transition-all duration-300">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-white text-lg">Visita a la Torre Eiffel</p>
-                  <p className="text-white/70">Día 1 - $45 por persona</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="glass rounded-xl p-4 hover:scale-105 transition-all duration-300">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-teal-500 rounded-xl flex items-center justify-center shadow-lg">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-white text-lg">Museo del Louvre</p>
-                  <p className="text-white/70">Día 2 - $30 por persona</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="glass rounded-xl p-4 hover:scale-105 transition-all duration-300">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center shadow-lg">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-white text-lg">Crucero por el Sena</p>
-                  <p className="text-white/70">Día 3 - $25 por persona</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="h6" component="h3" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
+            Actividades del Viaje
+          </Typography>
+          
+          <List>
+            <ListItem>
+              <ListItemAvatar>
+                <Avatar sx={{ bgcolor: 'primary.main' }}>
+                  <LocationOn />
+                </Avatar>
+              </ListItemAvatar>
+              <ListItemText
+                primary="Visita a la Torre Eiffel"
+                secondary="Día 1 - $45 por persona"
+              />
+            </ListItem>
+            
+            <Divider variant="inset" component="li" />
+            
+            <ListItem>
+              <ListItemAvatar>
+                <Avatar sx={{ bgcolor: 'success.main' }}>
+                  <Museum />
+                </Avatar>
+              </ListItemAvatar>
+              <ListItemText
+                primary="Museo del Louvre"
+                secondary="Día 2 - $30 por persona"
+              />
+            </ListItem>
+            
+            <Divider variant="inset" component="li" />
+            
+            <ListItem>
+              <ListItemAvatar>
+                <Avatar sx={{ bgcolor: 'warning.main' }}>
+                  <DirectionsBoat />
+                </Avatar>
+              </ListItemAvatar>
+              <ListItemText
+                primary="Crucero por el Sena"
+                secondary="Día 3 - $25 por persona"
+              />
+            </ListItem>
+          </List>
+        </Paper>
+      </Container>
+    </Box>
   );
 }

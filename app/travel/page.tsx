@@ -3,6 +3,41 @@
 import { useAuth } from '../../hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import {
+  Box,
+  Container,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  CardActions,
+  Button,
+  AppBar,
+  Toolbar,
+  IconButton,
+  TextField,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  CircularProgress,
+  Backdrop,
+  Avatar,
+  Chip,
+  Alert,
+} from '@mui/material';
+import {
+  ArrowBack,
+  Add,
+  TravelExplore,
+  WbSunny,
+  Landscape,
+  LocationCity,
+  BeachAccess,
+  Save,
+  Cancel,
+} from '@mui/icons-material';
 
 export default function CreateTripPage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -24,76 +59,33 @@ export default function CreateTripPage() {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  // Mostrar loading con el mismo estilo del dashboard
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="glass-card text-center animate-slide-in">
-          <div className="w-16 h-16 mx-auto mb-6 relative">
-            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 animate-pulse-glow"></div>
-            <div className="absolute inset-2 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-              <svg className="w-8 h-8 text-white animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </div>
-          </div>
-          <h2 className="text-3xl font-bold gradient-text mb-2">TravelMate</h2>
-          <p className="text-white/80">Cargando...</p>
-        </div>
-      </div>
+      <Backdrop open={true} sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+        <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
+          <CircularProgress color="inherit" size={60} />
+          <Typography variant="h6">Cargando...</Typography>
+        </Box>
+      </Backdrop>
     );
   }
 
-  // Si no está autenticado, no mostrar nada
   if (!isAuthenticated) {
     return null;
   }
 
-  // Función para obtener iconos con el estilo del dashboard
-  const getIcon = (image: string, size = 'w-12 h-12') => {
-    const iconClass = `${size} rounded-2xl flex items-center justify-center shadow-lg`;
-    
+  const getIcon = (image: string) => {
     switch (image) {
       case 'sun':
-        return (
-          <div className={`${iconClass} bg-gradient-to-r from-yellow-400 to-orange-500`}>
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z"/>
-            </svg>
-          </div>
-        );
+        return <WbSunny sx={{ fontSize: 30 }} />;
       case 'mountain':
-        return (
-          <div className={`${iconClass} bg-gradient-to-r from-blue-500 to-cyan-500`}>
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8.25 6.75a3.75 3.75 0 117.5 0 3.75 3.75 0 01-7.5 0zM15.75 9.75a3 3 0 116 0 3 3 0 01-6 0zM2.25 9.75a3 3 0 116 0 3 3 0 01-6 0z"/>
-            </svg>
-          </div>
-        );
+        return <Landscape sx={{ fontSize: 30 }} />;
       case 'city':
-        return (
-          <div className={`${iconClass} bg-gradient-to-r from-gray-600 to-gray-800`}>
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M3.75 21h16.5M4.5 3h15l-.75 18h-13.5L4.5 3zM9 9.75h1.5v4.5H9v-4.5zM13.5 9.75H15v4.5h-1.5v-4.5z"/>
-            </svg>
-          </div>
-        );
+        return <LocationCity sx={{ fontSize: 30 }} />;
       case 'beach':
-        return (
-          <div className={`${iconClass} bg-gradient-to-r from-cyan-400 to-blue-500`}>
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-          </div>
-        );
+        return <BeachAccess sx={{ fontSize: 30 }} />;
       default:
-        return (
-          <div className={`${iconClass} bg-gradient-to-r from-gray-400 to-gray-600`}>
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75z"/>
-            </svg>
-          </div>
-        );
+        return <TravelExplore sx={{ fontSize: 30 }} />;
     }
   };
 
@@ -171,227 +163,374 @@ export default function CreateTripPage() {
   ];
 
   return (
-    <div className="min-h-screen p-4">
-      {/* Header con estilo del dashboard */}
-      <header className="glass-card mb-8 animate-slide-in">
-        <div className="flex items-center space-x-4">
-          <button
+    <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
+      {/* App Bar */}
+      <AppBar position="static" elevation={0} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
+        <Toolbar>
+          <IconButton
+            edge="start"
+            color="inherit"
             onClick={() => router.back()}
-            className="glass-button p-3 hover:scale-105 transition-all duration-300"
+            sx={{ mr: 2 }}
           >
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold gradient-text">Crear Nuevo Viaje</h1>
-            <p className="text-white/70">Planifica tu próxima aventura</p>
-          </div>
-        </div>
-      </header>
+            <ArrowBack />
+          </IconButton>
+          <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+            <Add />
+          </Avatar>
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography variant="h6" component="h1" sx={{ fontWeight: 600 }}>
+              Crear Nuevo Viaje
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Planifica tu próxima aventura
+            </Typography>
+          </Box>
+        </Toolbar>
+      </AppBar>
 
-      <main className="max-w-4xl mx-auto">
-        <div className="glass-card animate-slide-in" style={{animationDelay: '0.2s'}}>
-          <form onSubmit={handleSubmit} className="space-y-6">
+      <Container maxWidth="md" sx={{ py: 6 }}>
+        {/* Header Section */}
+        <Box sx={{ mb: 6, textAlign: 'center' }}>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mb: 2, color: 'text.primary' }}>
+            Crear Nuevo Viaje
+          </Typography>
+          <Typography variant="body1" sx={{ color: 'text.secondary', maxWidth: 600, mx: 'auto' }}>
+            Planifica tu próxima aventura con todos los detalles importantes
+          </Typography>
+        </Box>
+
+        <Card sx={{ 
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.7) 100%)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+        }}>
+          <CardContent sx={{ p: 6 }}>
+            <Box component="form" onSubmit={handleSubmit} sx={{ '& > *': { mb: 4 } }}>
             
-            {/* Nombre del viaje */}
-            <div>
-              <label htmlFor="name" className="block text-sm font-bold text-white mb-3">
-                Nombre del viaje *
-              </label>
-              <input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ej: Aventura en París"
-                className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent text-white placeholder-white/50 backdrop-blur-sm"
-                required
-                maxLength={150}
-              />
-            </div>
-            
-            {/* Descripción */}
-            <div>
-              <label htmlFor="description" className="block text-sm font-bold text-white mb-3">
-                Descripción
-              </label>
-              <textarea
-                id="description"
+              {/* Nombre del viaje */}
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
+                  Información Básica
+                </Typography>
+                <TextField
+                  fullWidth
+                  label="Nombre del viaje"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ej: Aventura en París"
+                  required
+                  inputProps={{ maxLength: 150 }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                    }
+                  }}
+                />
+              </Box>
+              
+              {/* Descripción */}
+              <TextField
+                fullWidth
+                label="Descripción"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe tu viaje..."
+                multiline
                 rows={3}
-                className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent text-white placeholder-white/50 backdrop-blur-sm resize-none"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                  }
+                }}
               />
-            </div>
 
-            {/* Fechas */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="dateI" className="block text-sm font-bold text-white mb-3">
-                  Fecha de inicio *
-                </label>
-                <input
-                  id="dateI"
-                  type="date"
-                  value={dateI}
-                  onChange={(e) => setDateI(e.target.value)}
-                  className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent text-white backdrop-blur-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="dateF" className="block text-sm font-bold text-white mb-3">
-                  Fecha de fin *
-                </label>
-                <input
-                  id="dateF"
-                  type="date"
-                  value={dateF}
-                  onChange={(e) => setDateF(e.target.value)}
-                  className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent text-white backdrop-blur-sm"
-                  required
-                />
-              </div>
-            </div>
+              {/* Fechas */}
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
+                  Fechas del Viaje
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                  <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
+                    <TextField
+                      fullWidth
+                      label="Fecha de inicio"
+                      type="date"
+                      value={dateI}
+                      onChange={(e) => setDateI(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      required
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                        }
+                      }}
+                    />
+                  </Box>
+                  <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
+                    <TextField
+                      fullWidth
+                      label="Fecha de fin"
+                      type="date"
+                      value={dateF}
+                      onChange={(e) => setDateF(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      required
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                        }
+                      }}
+                    />
+                  </Box>
+                </Box>
+              </Box>
 
-            {/* Mostrar duración calculada */}
-            {calculateDuration() > 0 && (
-              <div className="bg-blue-500/20 border border-blue-400/30 rounded-xl p-4 backdrop-blur-sm animate-slide-in">
-                <p className="text-blue-300 font-medium flex items-center">
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+              {/* Mostrar duración calculada */}
+              {calculateDuration() > 0 && (
+                <Alert 
+                  severity="info" 
+                  sx={{ 
+                    borderRadius: 2,
+                    background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
+                    color: 'white',
+                    '& .MuiAlert-icon': {
+                      color: 'white'
+                    }
+                  }}
+                >
                   Duración: {calculateDuration()} día{calculateDuration() !== 1 ? 's' : ''}
-                </p>
-              </div>
-            )}
+                </Alert>
+              )}
 
-            {/* Costo */}
-            <div>
-              <label htmlFor="cost" className="block text-sm font-bold text-white mb-3">
-                Presupuesto aproximado
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-4 text-white/50">$</span>
-                <input
-                  id="cost"
+              {/* Costo */}
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
+                  Presupuesto
+                </Typography>
+                <TextField
+                  fullWidth
+                  label="Presupuesto aproximado"
                   type="number"
-                  min="0"
-                  step="0.01"
                   value={cost}
                   onChange={(e) => setCost(e.target.value)}
                   placeholder="0.00"
-                  className="w-full pl-10 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent text-white placeholder-white/50 backdrop-blur-sm"
+                  inputProps={{ min: 0, step: 0.01 }}
+                  InputProps={{
+                    startAdornment: <Typography sx={{ mr: 1, color: 'primary.main', fontWeight: 600 }}>$</Typography>,
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                    }
+                  }}
                 />
-              </div>
-            </div>
+              </Box>
 
-            {/* Selector de icono */}
-            <div>
-              <label className="block text-sm font-bold text-white mb-3">
-                Tipo de viaje
-              </label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {iconOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setSelectedIcon(option.value)}
-                    className={`flex flex-col items-center p-4 rounded-xl border-2 transition-all duration-300 backdrop-blur-sm ${
-                      selectedIcon === option.value
-                        ? 'border-blue-400/50 bg-blue-500/20 scale-105'
-                        : 'border-white/20 bg-white/10 hover:border-white/30 hover:bg-white/20'
-                    }`}
+              {/* Selector de icono */}
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: 'text.primary' }}>
+                  Tipo de Viaje
+                </Typography>
+                <FormControl component="fieldset" fullWidth>
+                  <RadioGroup
+                    value={selectedIcon}
+                    onChange={(e) => setSelectedIcon(e.target.value)}
+                    sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      gap: 2,
+                      '& .MuiFormControlLabel-root': {
+                        flex: '1 1 0',
+                        margin: 0,
+                        padding: 3,
+                        borderRadius: 3,
+                        border: '2px solid transparent',
+                        transition: 'all 0.3s ease',
+                        minHeight: 120,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        '&:hover': {
+                          backgroundColor: 'rgba(3, 169, 244, 0.05)',
+                          borderColor: 'primary.light',
+                          transform: 'translateY(-2px)',
+                        },
+                        '&.Mui-checked': {
+                          backgroundColor: 'rgba(3, 169, 244, 0.1)',
+                          borderColor: 'primary.main',
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 8px 16px rgba(3, 169, 244, 0.2)',
+                        }
+                      }
+                    }}
                   >
-                    {getIcon(option.value, 'w-10 h-10')}
-                    <span className="text-sm font-medium mt-2 text-white/90">{option.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+                    {iconOptions.map((option) => (
+                      <FormControlLabel
+                        key={option.value}
+                        value={option.value}
+                        control={<Radio sx={{ color: 'primary.main' }} />}
+                        label={
+                          <Box sx={{ 
+                            display: 'flex', 
+                            flexDirection: 'column',
+                            alignItems: 'center', 
+                            gap: 2, 
+                            width: '100%',
+                            textAlign: 'center'
+                          }}>
+                            <Avatar sx={{ 
+                              bgcolor: selectedIcon === option.value ? 'primary.main' : 'grey.300',
+                              width: 50, 
+                              height: 50,
+                              transition: 'all 0.3s ease',
+                              mb: 1
+                            }}>
+                              {getIcon(option.value)}
+                            </Avatar>
+                            <Typography sx={{ 
+                              fontWeight: 600, 
+                              color: 'text.primary',
+                              fontSize: '0.9rem'
+                            }}>
+                              {option.label}
+                            </Typography>
+                          </Box>
+                        }
+                      />
+                    ))}
+                  </RadioGroup>
+                </FormControl>
+              </Box>
 
-            {/* Preview del viaje */}
-            {name && (
-              <div className="glass-card bg-white/5 border-white/10 animate-slide-in">
-                <h3 className="text-sm font-bold text-white/90 mb-4 flex items-center">
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  Vista previa:
-                </h3>
-                <div className="flex items-center space-x-4">
-                  {getIcon(selectedIcon, 'w-16 h-16')}
-                  <div className="flex-1">
-                    <h4 className="text-xl font-bold text-white mb-1">{name}</h4>
-                    {description && (
-                      <p className="text-white/70 text-sm mb-2">{description}</p>
-                    )}
-                    <div className="flex items-center space-x-4 text-sm text-white/60">
-                      {dateI && dateF && (
-                        <span className="flex items-center">
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          {new Date(dateI).toLocaleDateString('es-ES')} - {new Date(dateF).toLocaleDateString('es-ES')}
-                        </span>
-                      )}
-                      {cost && (
-                        <span className="flex items-center">
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                          </svg>
-                          ${parseFloat(cost).toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+              {/* Preview del viaje */}
+              {name && (
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: 'text.primary' }}>
+                    Vista Previa
+                  </Typography>
+                  <Card sx={{ 
+                    background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
+                    color: 'white',
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: '0 12px 24px rgba(3, 169, 244, 0.3)',
+                    },
+                    transition: 'all 0.3s ease',
+                  }}>
+                    <CardContent sx={{ p: 4 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <Avatar sx={{ 
+                          bgcolor: 'rgba(255,255,255,0.2)', 
+                          width: 80, 
+                          height: 80,
+                          backdropFilter: 'blur(10px)',
+                          border: '2px solid rgba(255,255,255,0.3)'
+                        }}>
+                          {getIcon(selectedIcon)}
+                        </Avatar>
+                        <Box sx={{ flexGrow: 1 }}>
+                          <Typography variant="h5" component="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                            {name}
+                          </Typography>
+                          {description && (
+                            <Typography variant="body1" sx={{ opacity: 0.9, mb: 2 }}>
+                              {description}
+                            </Typography>
+                          )}
+                          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                            {dateI && dateF && (
+                              <Chip
+                                label={`${new Date(dateI).toLocaleDateString('es-ES')} - ${new Date(dateF).toLocaleDateString('es-ES')}`}
+                                size="small"
+                                sx={{ 
+                                  bgcolor: 'rgba(255,255,255,0.2)',
+                                  color: 'white',
+                                  fontWeight: 600
+                                }}
+                              />
+                            )}
+                            {cost && (
+                              <Chip
+                                label={`$${parseFloat(cost).toLocaleString()}`}
+                                size="small"
+                                sx={{ 
+                                  bgcolor: 'rgba(255,255,255,0.2)',
+                                  color: 'white',
+                                  fontWeight: 600
+                                }}
+                              />
+                            )}
+                          </Box>
+                        </Box>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Box>
+              )}
 
-            {/* Botones */}
-            <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 pt-6">
-              <button
-                type="button"
-                onClick={() => router.back()}
-                className="flex-1 glass-button text-white/70 hover:text-white border-white/20 hover:border-white/30 py-4 font-bold flex items-center justify-center space-x-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <span>Cancelar</span>
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1 glass-button bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white py-4 font-bold disabled:opacity-50 disabled:cursor-not-allowed border-0 flex items-center justify-center space-x-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    <span>Creando...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    <span>Crear Viaje</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      </main>
-    </div>
+              {/* Botones */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'flex-end', 
+                gap: 3, 
+                pt: 4,
+                borderTop: '1px solid rgba(0,0,0,0.1)',
+                mt: 4
+              }}>
+                <Button
+                  variant="outlined"
+                  onClick={() => router.back()}
+                  startIcon={<Cancel />}
+                  sx={{
+                    px: 4,
+                    py: 1.5,
+                    borderRadius: 2,
+                    borderColor: 'primary.main',
+                    color: 'primary.main',
+                    fontWeight: 600,
+                    '&:hover': {
+                      borderColor: 'primary.dark',
+                      backgroundColor: 'rgba(3, 169, 244, 0.05)',
+                    }
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={isSubmitting}
+                  startIcon={isSubmitting ? <CircularProgress size={20} /> : <Save />}
+                  sx={{
+                    px: 4,
+                    py: 1.5,
+                    borderRadius: 2,
+                    background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
+                    fontWeight: 600,
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #0288d1 0%, #29b6f6 100%)',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 8px 16px rgba(3, 169, 244, 0.3)',
+                    },
+                    '&:disabled': {
+                      background: 'grey.300',
+                      color: 'grey.500',
+                    }
+                  }}
+                >
+                  {isSubmitting ? 'Creando...' : 'Crear Viaje'}
+                </Button>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
   );
 }
