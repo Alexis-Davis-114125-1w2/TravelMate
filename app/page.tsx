@@ -3,6 +3,25 @@
 import { useAuth } from '../hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import {
+  Box,
+  Container,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  Button,
+  CircularProgress,
+  Backdrop,
+  Avatar,
+} from '@mui/material';
+import {
+  TravelExplore,
+  Assignment,
+  People,
+  BarChart,
+  PlayArrow,
+} from '@mui/icons-material';
 
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -21,20 +40,12 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="glass-card text-center animate-slide-in">
-          <div className="w-16 h-16 mx-auto mb-6 relative">
-            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 animate-pulse-glow"></div>
-            <div className="absolute inset-2 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-              <svg className="w-8 h-8 text-white animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </div>
-          </div>
-          <h2 className="text-3xl font-bold gradient-text mb-2">TravelMate</h2>
-          <p className="text-white/80">Preparando tu aventura...</p>
-        </div>
-      </div>
+      <Backdrop open={true} sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+        <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
+          <CircularProgress color="inherit" size={60} />
+          <Typography variant="h6">Preparando tu aventura...</Typography>
+        </Box>
+      </Backdrop>
     );
   }
 
@@ -43,100 +54,280 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl">
-        {/* Hero Section */}
-        <div className="text-center mb-12 animate-slide-in">
-          <div className="glass-card max-w-2xl mx-auto">
-            <div className="mb-8">
-              <div className="w-24 h-24 mx-auto mb-6 relative">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 animate-pulse-glow"></div>
-                <div className="absolute inset-2 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                  <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-              </div>
-              <h1 className="text-5xl md:text-6xl font-bold gradient-text mb-4">
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+      {/* Hero Section con gradiente */}
+      <Box sx={{ 
+        background: 'linear-gradient(135deg, #03a9f4 0%, #29b6f6 50%, #4fc3f7 100%)',
+        py: 12,
+        mb: 8
+      }}>
+        <Container maxWidth="lg">
+          <Box sx={{ textAlign: 'center', color: 'white' }}>
+            <Avatar
+              sx={{
+                bgcolor: 'rgba(255,255,255,0.2)',
+                width: 120,
+                height: 120,
+                mx: 'auto',
+                mb: 4,
+                backdropFilter: 'blur(10px)',
+                border: '2px solid rgba(255,255,255,0.3)',
+              }}
+            >
+              <TravelExplore sx={{ fontSize: 60 }} />
+            </Avatar>
+            
+            <Typography variant="h2" component="h1" sx={{ fontWeight: 700, mb: 3, color: 'white' }}>
                 TravelMate
-              </h1>
-              <p className="text-xl text-white/90 mb-8 leading-relaxed">
+            </Typography>
+            
+            <Typography variant="h5" sx={{ mb: 4, color: 'rgba(255,255,255,0.9)', maxWidth: 600, mx: 'auto' }}>
                 Tu compañero perfecto para descubrir el mundo
-              </p>
-              <p className="text-lg text-white/70 mb-8">
-                Planifica, organiza y disfruta de tus aventuras con nuestra aplicación inteligente de gestión de viajes
-              </p>
-            </div>
+            </Typography>
+            
+            <Typography variant="h6" sx={{ mb: 6, color: 'rgba(255,255,255,0.8)', maxWidth: 800, mx: 'auto', lineHeight: 1.6 }}>
+              Planifica, organiza y disfruta de tus aventuras con nuestra aplicación inteligente de gestión de viajes. 
+              Conecta con otros viajeros, comparte experiencias y crea recuerdos inolvidables.
+            </Typography>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button
+            <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Button
+                variant="contained"
+                size="large"
                 onClick={() => router.push('/login')}
-                className="glass-button text-white font-semibold px-8 py-4 text-lg hover:scale-105 transition-all duration-300"
+                sx={{ 
+                  px: 6, 
+                  py: 2,
+                  bgcolor: 'white',
+                  color: 'primary.main',
+                  fontWeight: 600,
+                  fontSize: '1.1rem',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.9)',
+                    transform: 'translateY(-2px)',
+                  },
+                  transition: 'all 0.3s ease',
+                }}
               >
                 Comenzar Aventura
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outlined"
+                size="large"
                 onClick={() => router.push('/login')}
-                className="glass-button text-white/90 font-medium px-8 py-4 text-lg border-white/30 hover:border-white/50 transition-all duration-300"
+                sx={{ 
+                  px: 6, 
+                  py: 2,
+                  borderColor: 'white',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: '1.1rem',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.1)',
+                    borderColor: 'white',
+                    transform: 'translateY(-2px)',
+                  },
+                  transition: 'all 0.3s ease',
+                }}
               >
                 Explorar Demo
-              </button>
-            </div>
-          </div>
-        </div>
+              </Button>
+            </Box>
+          </Box>
+        </Container>
+      </Box>
+
+      <Container maxWidth="lg" sx={{ pb: 8 }}>
 
         {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-6 mb-12">
-          <div className="glass-card text-center animate-slide-in" style={{animationDelay: '0.2s'}}>
-            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">Planificación Inteligente</h3>
-            <p className="text-white/70">Organiza tus viajes con herramientas avanzadas de planificación</p>
-          </div>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4, mb: 8 }}>
+          <Box sx={{ flex: '1 1 300px', minWidth: 300 }}>
+            <Card sx={{ 
+              height: '100%', 
+              textAlign: 'center',
+              background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
+              color: 'white',
+              '&:hover': {
+                transform: 'translateY(-8px)',
+                boxShadow: '0 20px 40px rgba(3, 169, 244, 0.3)',
+              },
+              transition: 'all 0.3s ease',
+            }}>
+              <CardContent sx={{ p: 4 }}>
+                <Avatar sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.2)', 
+                  width: 80, 
+                  height: 80, 
+                  mx: 'auto', 
+                  mb: 3,
+                  backdropFilter: 'blur(10px)',
+                }}>
+                  <Assignment sx={{ fontSize: 40 }} />
+                </Avatar>
+                <Typography variant="h5" component="h3" sx={{ fontWeight: 700, mb: 2 }}>
+                  Planificación Inteligente
+                </Typography>
+                <Typography variant="body1" sx={{ opacity: 0.9, lineHeight: 1.6 }}>
+                  Organiza tus viajes con herramientas avanzadas de planificación, 
+                  itinerarios automáticos y recomendaciones personalizadas.
+                </Typography>
+              </CardContent>
+            </Card>
+          </Box>
 
-          <div className="glass-card text-center animate-slide-in" style={{animationDelay: '0.4s'}}>
-            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">Colaboración</h3>
-            <p className="text-white/70">Comparte y colabora con tus compañeros de viaje</p>
-          </div>
+          <Box sx={{ flex: '1 1 300px', minWidth: 300 }}>
+            <Card sx={{ 
+              height: '100%', 
+              textAlign: 'center',
+              background: 'linear-gradient(135deg, #ff7043 0%, #ffab91 100%)',
+              color: 'white',
+              '&:hover': {
+                transform: 'translateY(-8px)',
+                boxShadow: '0 20px 40px rgba(255, 112, 67, 0.3)',
+              },
+              transition: 'all 0.3s ease',
+            }}>
+              <CardContent sx={{ p: 4 }}>
+                <Avatar sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.2)', 
+                  width: 80, 
+                  height: 80, 
+                  mx: 'auto', 
+                  mb: 3,
+                  backdropFilter: 'blur(10px)',
+                }}>
+                  <People sx={{ fontSize: 40 }} />
+                </Avatar>
+                <Typography variant="h5" component="h3" sx={{ fontWeight: 700, mb: 2 }}>
+                  Colaboración
+                </Typography>
+                <Typography variant="body1" sx={{ opacity: 0.9, lineHeight: 1.6 }}>
+                  Conecta con otros viajeros, comparte experiencias y 
+                  crea grupos de viaje para aventuras inolvidables.
+                </Typography>
+              </CardContent>
+            </Card>
+          </Box>
 
-          <div className="glass-card text-center animate-slide-in" style={{animationDelay: '0.6s'}}>
-            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-green-500 to-teal-500 rounded-2xl flex items-center justify-center">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">Estadísticas</h3>
-            <p className="text-white/70">Analiza tus gastos y experiencias de viaje</p>
-          </div>
-        </div>
+          <Box sx={{ flex: '1 1 300px', minWidth: 300 }}>
+            <Card sx={{ 
+              height: '100%', 
+              textAlign: 'center',
+              background: 'linear-gradient(135deg, #29b6f6 0%, #4fc3f7 100%)',
+              color: 'white',
+              '&:hover': {
+                transform: 'translateY(-8px)',
+                boxShadow: '0 20px 40px rgba(41, 182, 246, 0.3)',
+              },
+              transition: 'all 0.3s ease',
+            }}>
+              <CardContent sx={{ p: 4 }}>
+                <Avatar sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.2)', 
+                  width: 80, 
+                  height: 80, 
+                  mx: 'auto', 
+                  mb: 3,
+                  backdropFilter: 'blur(10px)',
+                }}>
+                  <BarChart sx={{ fontSize: 40 }} />
+                </Avatar>
+                <Typography variant="h5" component="h3" sx={{ fontWeight: 700, mb: 2 }}>
+                  Estadísticas
+                </Typography>
+                <Typography variant="body1" sx={{ opacity: 0.9, lineHeight: 1.6 }}>
+                  Analiza tus gastos, destinos visitados y experiencias 
+                  con gráficos detallados y reportes personalizados.
+                </Typography>
+              </CardContent>
+            </Card>
+          </Box>
+        </Box>
+
+        {/* Estadísticas */}
+        <Box sx={{ mb: 8 }}>
+          <Typography variant="h4" component="h2" sx={{ textAlign: 'center', fontWeight: 700, mb: 6, color: 'text.primary' }}>
+            Únete a nuestra comunidad
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
+              <Card sx={{ textAlign: 'center', p: 3, background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)', color: 'white' }}>
+                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>10K+</Typography>
+                <Typography variant="body1" sx={{ opacity: 0.9 }}>Viajeros Activos</Typography>
+              </Card>
+            </Box>
+            <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
+              <Card sx={{ textAlign: 'center', p: 3, background: 'linear-gradient(135deg, #ff7043 0%, #ffab91 100%)', color: 'white' }}>
+                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>50K+</Typography>
+                <Typography variant="body1" sx={{ opacity: 0.9 }}>Viajes Planificados</Typography>
+              </Card>
+            </Box>
+            <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
+              <Card sx={{ textAlign: 'center', p: 3, background: 'linear-gradient(135deg, #29b6f6 0%, #4fc3f7 100%)', color: 'white' }}>
+                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>100+</Typography>
+                <Typography variant="body1" sx={{ opacity: 0.9 }}>Países Cubiertos</Typography>
+              </Card>
+            </Box>
+            <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
+              <Card sx={{ textAlign: 'center', p: 3, background: 'linear-gradient(135deg, #66bb6a 0%, #81c784 100%)', color: 'white' }}>
+                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>4.9★</Typography>
+                <Typography variant="body1" sx={{ opacity: 0.9 }}>Calificación</Typography>
+              </Card>
+            </Box>
+          </Box>
+        </Box>
 
         {/* Call to Action */}
-        <div className="text-center animate-slide-in" style={{animationDelay: '0.8s'}}>
-          <div className="glass-card max-w-xl mx-auto">
-            <h2 className="text-2xl font-bold text-white mb-4">
+        <Box sx={{ textAlign: 'center' }}>
+          <Card sx={{ 
+            maxWidth: 600, 
+            mx: 'auto',
+            background: 'linear-gradient(135deg, #03a9f4 0%, #ff7043 100%)',
+            color: 'white',
+            overflow: 'hidden',
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.1"%3E%3Ccircle cx="30" cy="30" r="2"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+            }
+          }}>
+            <CardContent sx={{ p: 6, position: 'relative', zIndex: 1 }}>
+              <Typography variant="h4" component="h2" sx={{ fontWeight: 700, mb: 3 }}>
               ¿Listo para tu próxima aventura?
-            </h2>
-            <p className="text-white/80 mb-6">
-              Únete a miles de viajeros que ya confían en TravelMate
-            </p>
-            <button
+              </Typography>
+              <Typography variant="h6" sx={{ mb: 4, opacity: 0.9 }}>
+                Únete a miles de viajeros que ya confían en TravelMate para planificar sus aventuras
+              </Typography>
+              <Button
+                variant="contained"
+                size="large"
               onClick={() => router.push('/login')}
-              className="glass-button text-white font-semibold px-8 py-4 text-lg hover:scale-105 transition-all duration-300 animate-pulse-glow"
+                startIcon={<PlayArrow />}
+                sx={{ 
+                  px: 6, 
+                  py: 2,
+                  bgcolor: 'white',
+                  color: 'primary.main',
+                  fontWeight: 600,
+                  fontSize: '1.1rem',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.9)',
+                    transform: 'translateY(-2px)',
+                  },
+                  transition: 'all 0.3s ease',
+                }}
             >
               Comenzar Ahora
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+              </Button>
+            </CardContent>
+          </Card>
+        </Box>
+      </Container>
+    </Box>
   );
 }
