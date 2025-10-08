@@ -49,4 +49,39 @@ export const api = {
     });
     return response;
   },
+
+  // Viajes
+  createTrip: async (tripData: any, userId: number) => {
+    // Crear FormData para enviar como multipart/form-data
+    const formData = new FormData();
+    
+    // Crear un Blob con el JSON para que se envíe correctamente como RequestPart
+    const tripBlob = new Blob([JSON.stringify(tripData)], { type: 'application/json' });
+    formData.append('trip', tripBlob);
+    
+    // Obtener solo el token de autorización, sin Content-Type
+    const token = localStorage.getItem('authToken');
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    console.log('Enviando request a /api/trips/add con token:', token ? 'Presente' : 'Ausente');
+    console.log('Token completo:', token);
+    console.log('FormData contents:', Array.from(formData.entries()));
+    
+    const response = await fetch(`${API_BASE_URL}/api/trips/add?userId=${userId}`, {
+      method: 'POST',
+      headers: headers,
+      body: formData,
+    });
+    return response;
+  },
+
+  getUserTrips: async (userId: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/trips/get/${userId}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
 };
