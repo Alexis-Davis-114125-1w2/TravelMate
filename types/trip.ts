@@ -8,6 +8,8 @@ export interface Trip {
   status: 'planning' | 'active' | 'completed';
   image?: string;
   description?: string;
+  vehicle?: 'auto' | 'avion' | 'caminando';
+  cost?: number;
 }
 
 export interface TripStats {
