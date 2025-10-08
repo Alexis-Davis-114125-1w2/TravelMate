@@ -53,10 +53,10 @@ import {
 } from '@mui/icons-material';
 
 export default function CreateTripPage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
   
-  // Estados para el formulario - alineados con la base de datos
+  // Estados para el formulario - alineados con TripCreate DTO
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [origin, setOrigin] = useState('');
@@ -64,11 +64,11 @@ export default function CreateTripPage() {
   const [dateI, setDateI] = useState('');
   const [dateF, setDateF] = useState('');
   const [cost, setCost] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [selectedIcon, setSelectedIcon] = useState('sun');
   const [selectedVehicle, setSelectedVehicle] = useState('auto');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Estados para Google Maps
   const [originCoords, setOriginCoords] = useState<{lat: number, lng: number} | null>(null);
   const [destinationCoords, setDestinationCoords] = useState<{lat: number, lng: number} | null>(null);
   const [originAddress, setOriginAddress] = useState('');
@@ -86,6 +86,7 @@ export default function CreateTripPage() {
   // Referencias para autocompletado
   const originInputRef = useRef<HTMLInputElement>(null);
   const destinationInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Redirección si no está autenticado
   useEffect(() => {
@@ -318,6 +319,7 @@ export default function CreateTripPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
 
     // Validaciones básicas
     if (!name || !destination || !dateI || !dateF) {
@@ -515,6 +517,13 @@ export default function CreateTripPage() {
           </Typography>
         </Box>
 
+        {/* Mostrar errores */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+
         <Card sx={{ 
           background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.7) 100%)',
           backdropFilter: 'blur(10px)',
@@ -671,6 +680,31 @@ export default function CreateTripPage() {
                   }
                 }}
               />
+
+              {/* Imagen del viaje */}
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
+                  Imagen del Viaje (Opcional)
+                </Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  sx={{ borderRadius: 2 }}
+                >
+                  {imageFile ? 'Cambiar Imagen' : 'Subir Imagen'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={handleImageChange}
+                  />
+                </Button>
+                {imageFile && (
+                  <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
+                    Archivo seleccionado: {imageFile.name}
+                  </Typography>
+                )}
+              </Box>
 
               {/* Fechas */}
               <Box>
@@ -1006,6 +1040,7 @@ export default function CreateTripPage() {
                   variant="outlined"
                   onClick={() => router.back()}
                   startIcon={<Cancel />}
+                  disabled={isSubmitting}
                   sx={{
                     px: 4,
                     py: 1.5,
