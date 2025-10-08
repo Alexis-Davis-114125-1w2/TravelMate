@@ -40,17 +40,19 @@ import {
 } from '@mui/icons-material';
 
 export default function CreateTripPage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
   
-  // Estados para el formulario - alineados con la base de datos
+  // Estados para el formulario - alineados con TripCreate DTO
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [dateI, setDateI] = useState('');
   const [dateF, setDateF] = useState('');
   const [cost, setCost] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [selectedIcon, setSelectedIcon] = useState('sun');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Redirección si no está autenticado
   useEffect(() => {
@@ -89,55 +91,96 @@ export default function CreateTripPage() {
     }
   };
 
+  // Manejar la selección de imagen
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setImageFile(e.target.files[0]);
+    }
+  };
+
   // Función para manejar el envío del formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
 
     // Validaciones básicas
     if (!name || !dateI || !dateF) {
-      alert('Por favor, completa todos los campos obligatorios');
+      setError('Por favor, completa todos los campos obligatorios');
       setIsSubmitting(false);
       return;
     }
 
     if (new Date(dateI) >= new Date(dateF)) {
-      alert('La fecha de fin debe ser posterior a la fecha de inicio');
+      setError('La fecha de fin debe ser posterior a la fecha de inicio');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!user?.id) {
+      setError('No se pudo obtener la información del usuario');
       setIsSubmitting(false);
       return;
     }
 
     try {
-      // Crear el objeto del viaje según la estructura de la base de datos
-      const newTrip = {
+      // Obtener el token JWT del localStorage
+      const token = localStorage.getItem('authToken'); // ← CAMBIADO DE 'token' A 'authToken'
+      
+      if (!token) {
+        throw new Error('No se encontró token de autenticación. Por favor, inicia sesión nuevamente.');
+      }
+
+      // Crear FormData para enviar el trip con la imagen
+      const formData = new FormData();
+      
+      // Crear el objeto trip según TripCreate DTO
+      const tripData = {
         name: name,
-        date_i: dateI,
-        date_f: dateF,
+        dateI: dateI,  // camelCase para que coincida con el DTO
+        dateF: dateF,  // camelCase para que coincida con el DTO
         description: description || null,
         cost: cost ? parseFloat(cost) : 0,
-        // Datos adicionales para la UI
-        image: selectedIcon,
-        status: 'planning'
+        status: 'planning' // Agregar status
       };
 
-      console.log('Nuevo viaje a guardar en BD:', newTrip);
-      
-      // Aquí harías la llamada a tu API para guardar en la base de datos
-      // const response = await fetch('/api/trips', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(newTrip)
-      // });
-      
-      // Simular delay de API
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('Datos del viaje a enviar:', tripData); // Para debug
+      console.log('Fechas - Inicio:', dateI, 'Fin:', dateF); // Verificar que no estén vacías
+
+      // Agregar el trip como JSON string
+      formData.append('trip', new Blob([JSON.stringify(tripData)], {
+        type: 'application/json'
+      }));
+
+      // Agregar la imagen si existe
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
+
+      // Llamada a la API - POST /api/trips/add
+      const response = await fetch(`http://localhost:8080/api/trips/add?userId=${user.id}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`, // CRÍTICO: Enviar el JWT
+        },
+        body: formData,
+        // NO incluir Content-Type header, el navegador lo establece automáticamente con boundary
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(errorData || 'Error al crear el viaje');
+      }
+
+      const createdTrip = await response.json();
+      console.log('Viaje creado exitosamente:', createdTrip);
       
       // Redirigir al dashboard
       router.push('/dashboard');
       
     } catch (error) {
       console.error('Error al crear el viaje:', error);
-      alert('Hubo un error al crear el viaje. Inténtalo de nuevo.');
+      setError(error instanceof Error ? error.message : 'Hubo un error al crear el viaje. Inténtalo de nuevo.');
     } finally {
       setIsSubmitting(false);
     }
@@ -200,6 +243,13 @@ export default function CreateTripPage() {
           </Typography>
         </Box>
 
+        {/* Mostrar errores */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+
         <Card sx={{ 
           background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.7) 100%)',
           backdropFilter: 'blur(10px)',
@@ -245,6 +295,31 @@ export default function CreateTripPage() {
                   }
                 }}
               />
+
+              {/* Imagen del viaje */}
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
+                  Imagen del Viaje (Opcional)
+                </Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  sx={{ borderRadius: 2 }}
+                >
+                  {imageFile ? 'Cambiar Imagen' : 'Subir Imagen'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={handleImageChange}
+                  />
+                </Button>
+                {imageFile && (
+                  <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
+                    Archivo seleccionado: {imageFile.name}
+                  </Typography>
+                )}
+              </Box>
 
               {/* Fechas */}
               <Box>
@@ -487,6 +562,7 @@ export default function CreateTripPage() {
                   variant="outlined"
                   onClick={() => router.back()}
                   startIcon={<Cancel />}
+                  disabled={isSubmitting}
                   sx={{
                     px: 4,
                     py: 1.5,
