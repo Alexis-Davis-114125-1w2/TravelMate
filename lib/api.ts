@@ -51,7 +51,7 @@ export const api = {
   },
 
   // Viajes
-  createTrip: async (tripData: any, userId: number) => {
+  createTrip: async (tripData: any, userId: number, imageFile: File | null) => {
     // Crear FormData para enviar como multipart/form-data
     const formData = new FormData();
     
@@ -64,6 +64,9 @@ export const api = {
     const headers: Record<string, string> = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (imageFile) {
+      formData.append('image',imageFile);
     }
     
     console.log('Enviando request a /api/trips/add con token:', token ? 'Presente' : 'Ausente');

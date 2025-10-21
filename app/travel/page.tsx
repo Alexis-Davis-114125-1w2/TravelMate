@@ -352,7 +352,7 @@ export default function CreateTripPage() {
     // Validar que la fecha de inicio no sea en el pasado
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    if (new Date(dateI) < today) {
+    if (new Date(dateI) <= today) {
       toast.error('La fecha de inicio no puede ser en el pasado');
       setIsSubmitting(false);
       return;
@@ -423,7 +423,7 @@ export default function CreateTripPage() {
       console.log('Fechas válidas:', dateI && dateF);
       
       // Llamada al backend usando la función de API
-      const response = await api.createTrip(tripData, parseInt(userId));
+      const response = await api.createTrip(tripData, parseInt(userId),imageFile);
 
       console.log('Response status:', response.status);
       console.log('Response headers:', response.headers);

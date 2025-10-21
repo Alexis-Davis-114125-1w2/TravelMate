@@ -4,11 +4,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Trip } from '../../types/trip';
+import { api, API_BASE_URL, getAuthHeaders } from '../../lib/api';
 import {
   Box,
   Container,
   Typography,
-  Grid,
   Card,
   CardContent,
   CardActions,
@@ -18,18 +18,17 @@ import {
   IconButton,
   Chip,
   Avatar,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
-  Paper,
-  Divider,
   CircularProgress,
   Backdrop,
-  Fab,
   SpeedDial,
   SpeedDialAction,
   SpeedDialIcon,
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material';
 import {
   TravelExplore,
@@ -39,18 +38,36 @@ import {
   WbSunny,
   Landscape,
   LocationCity,
-  CheckCircle,
   Schedule,
   People,
   TrendingUp,
   Visibility,
-  Edit,
+  PersonAdd,
+  Place,
+  GroupAdd,
+  ContentCopy,
 } from '@mui/icons-material';
+
+interface TripWithParticipants extends Trip {
+  participantCount?: number;
+  joinCode?: string;
+}
 
 export default function DashboardPage() {
   const { user, logout, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const [trips, setTrips] = useState<Trip[]>([]);
+  const [trips, setTrips] = useState<TripWithParticipants[]>([]);
+  const [loadingTrips, setLoadingTrips] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [openJoinDialog, setOpenJoinDialog] = useState(false);
+  const [tripCode, setTripCode] = useState('');
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const handleCopyJoinCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -59,42 +76,137 @@ export default function DashboardPage() {
   }, [isAuthenticated, isLoading, router]);
 
   useEffect(() => {
-    const mockTrips: Trip[] = [
-      {
-        id: '1',
-        name: 'Viaje a Cancún',
-        destination: 'Cancún, México',
-        startDate: '2023-12-15',
-        endDate: '2023-12-22',
-        participants: 4,
-        status: 'completed',
-        image: 'sun'
-      },
-      {
-        id: '2',
-        name: 'Escapada a Bariloche',
-        destination: 'Bariloche, Argentina',
-        startDate: '2024-07-03',
-        endDate: '2024-07-10',
-        participants: 2,
-        status: 'planning',
-        image: 'mountain'
-      },
-      {
-        id: '3',
-        name: 'Aventura en París',
-        destination: 'París, Francia',
-        startDate: '2024-09-15',
-        endDate: '2024-09-22',
-        participants: 3,
-        status: 'planning',
-        image: 'city'
+    const fetchTripsWithParticipants = async () => {
+      if (!user?.id) {
+        setLoadingTrips(false);
+        return;
       }
-    ];
-    setTrips(mockTrips);
-  }, []);
 
-  if (isLoading) {
+      try {
+        setLoadingTrips(true);
+        setError(null);
+        
+        const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+        
+        if (isNaN(userId)) {
+          setError('ID de usuario inválido');
+          setLoadingTrips(false);
+          return;
+        }
+        
+        const response = await api.getUserTrips(userId);
+        
+        if (response.ok) {
+          const tripsData = await response.json();
+          
+          // Obtener el número de participantes para cada viaje
+          const tripsWithParticipants = await Promise.all(
+            tripsData.map(async (trip: Trip) => {
+              try {
+                const participantsResponse = await fetch(
+                  `${API_BASE_URL}/api/trips/${trip.id}/participants?userId=${userId}`,
+                  { headers: getAuthHeaders() }
+                );
+                
+                if (participantsResponse.ok) {
+                  const participants = await participantsResponse.json();
+                  return { ...trip, participantCount: participants.length };
+                }
+                return { ...trip, participantCount: trip.participants || 0 };
+              } catch (err) {
+                console.error(`Error al obtener participantes del viaje ${trip.id}:`, err);
+                return { ...trip, participantCount: trip.participants || 0 };
+              }
+            })
+          );
+          
+          setTrips(tripsWithParticipants);
+        } else {
+          const errorText = await response.text();
+          console.error('Error al cargar viajes:', errorText);
+          setError('No se pudieron cargar los viajes. Por favor, intenta de nuevo.');
+        }
+      } catch (err) {
+        console.error('Error al cargar viajes:', err);
+        setError('Error de conexión. Verifica que el servidor esté funcionando.');
+      } finally {
+        setLoadingTrips(false);
+      }
+    };
+
+    if (isAuthenticated && user) {
+      fetchTripsWithParticipants();
+    }
+  }, [user, isAuthenticated]);
+
+  const handleJoinTrip = async () => {
+    if (!tripCode.trim()) {
+      setError('Por favor ingresa un código de viaje');
+      return;
+    }
+    
+    if (!user?.id) {
+      setError('Usuario no identificado');
+      return;
+    }
+    
+    try {
+      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+      
+      const response = await fetch(
+        `${API_BASE_URL}/api/trips/join?code=${encodeURIComponent(tripCode.trim())}&userId=${userId}`,
+        {
+          method: 'POST',
+          headers: getAuthHeaders(),
+        }
+      );
+      
+      if (response.ok) {
+        setOpenJoinDialog(false);
+        setTripCode('');
+        setError(null);
+        
+        // Recargar los viajes
+        const tripsResponse = await api.getUserTrips(userId);
+        if (tripsResponse.ok) {
+          const tripsData = await tripsResponse.json();
+          
+          const tripsWithParticipants = await Promise.all(
+            tripsData.map(async (trip: Trip) => {
+              try {
+                const participantsResponse = await fetch(
+                  `${API_BASE_URL}/api/trips/${trip.id}/participants?userId=${userId}`,
+                  { headers: getAuthHeaders() }
+                );
+                
+                if (participantsResponse.ok) {
+                  const participants = await participantsResponse.json();
+                  return { ...trip, participantCount: participants.length };
+                }
+                return { ...trip, participantCount: trip.participants || 0 };
+              } catch (err) {
+                return { ...trip, participantCount: trip.participants || 0 };
+              }
+            })
+          );
+          
+          setTrips(tripsWithParticipants);
+        }
+        
+        // Mostrar mensaje de éxito (opcional)
+        alert('¡Te has unido al viaje exitosamente!');
+      } else {
+        const errorText = await response.text();
+        console.error('Error al unirse al viaje:', errorText);
+        setError('No se pudo unir al viaje. Verifica el código e intenta de nuevo.');
+      }
+    } catch (err) {
+      console.error('Error al unirse al viaje:', err);
+      setError('Error de conexión. Por favor, intenta de nuevo.');
+    }
+  };
+
+  if (isLoading || loadingTrips) {
     return (
       <Backdrop open={true} sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
@@ -123,12 +235,41 @@ export default function DashboardPage() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    if (!dateString) return 'Fecha no disponible';
+    
+    try {
+      // Si la fecha viene en formato dd/mm/yyyy
+      let date;
+      
+      if (dateString.includes('/')) {
+        const parts = dateString.split('/');
+        if (parts.length === 3) {
+          // Convertir dd/mm/yyyy a formato Date (mes - 1 porque enero es 0)
+          date = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        } else {
+          date = new Date(dateString);
+        }
+      } else {
+        // Si viene en formato ISO o similar
+        date = new Date(dateString);
+      }
+      
+      // Verificar si la fecha es válida
+      if (isNaN(date.getTime())) return 'Fecha inválida';
+      
+      return date.toLocaleDateString('es-AR', { 
+        day: '2-digit', 
+        month: 'long', 
+        year: 'numeric'
+      });
+    } catch (error) {
+      console.error('Error al formatear fecha:', error);
+      return 'Fecha inválida';
+    }
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'completed':
         return 'success';
       case 'planning':
@@ -141,7 +282,7 @@ export default function DashboardPage() {
   };
 
   const getStatusLabel = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'completed':
         return 'Completado';
       case 'planning':
@@ -149,7 +290,7 @@ export default function DashboardPage() {
       case 'active':
         return 'En curso';
       default:
-        return status;
+        return status || 'Desconocido';
     }
   };
 
@@ -201,196 +342,369 @@ export default function DashboardPage() {
           </Typography>
         </Box>
 
-        {/* Create New Trip Card */}
-        <Card sx={{ 
-          mb: 6, 
-          cursor: 'pointer',
-          background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
-          color: 'white',
-          '&:hover': {
-            transform: 'translateY(-4px)',
-            boxShadow: '0 12px 24px rgba(3, 169, 244, 0.3)',
-          },
-          transition: 'all 0.3s ease',
-        }} onClick={() => router.push('/travel')}>
-          <CardContent sx={{ p: 4 }}>
-            <Box display="flex" alignItems="center" gap={4}>
-              <Avatar sx={{ 
-                bgcolor: 'rgba(255,255,255,0.2)', 
-                width: 80, 
-                height: 80,
-                backdropFilter: 'blur(10px)',
-              }}>
-                <Add sx={{ fontSize: 40 }} />
-              </Avatar>
-              <Box sx={{ flexGrow: 1 }}>
-                <Typography variant="h4" component="h2" sx={{ fontWeight: 700, mb: 2 }}>
-                  Crear Nuevo Viaje
-                </Typography>
-                <Typography variant="h6" sx={{ opacity: 0.9, mb: 2 }}>
-                  Planifica tu próxima aventura y descubre nuevos destinos
-                </Typography>
-                <Typography variant="body1" sx={{ opacity: 0.8 }}>
-                  Haz clic aquí para comenzar a planificar tu próximo viaje con nuestras herramientas inteligentes
-                </Typography>
+        {/* Error Alert */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 4 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+
+        {/* Action Cards */}
+        <Box sx={{ display: 'flex', gap: 3, mb: 6, flexWrap: 'wrap' }}>
+          {/* Create New Trip Card */}
+          <Card sx={{ 
+            flex: '1 1 400px',
+            cursor: 'pointer',
+            background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
+            color: 'white',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: '0 12px 24px rgba(3, 169, 244, 0.3)',
+            },
+            transition: 'all 0.3s ease',
+          }} onClick={() => router.push('/travel')}>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" gap={3}>
+                <Avatar sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.2)', 
+                  width: 64, 
+                  height: 64,
+                  backdropFilter: 'blur(10px)',
+                }}>
+                  <Add sx={{ fontSize: 32 }} />
+                </Avatar>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="h5" component="h2" sx={{ fontWeight: 700, mb: 1 }}>
+                    Crear Nuevo Viaje
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.9 }}>
+                    Planifica tu próxima aventura
+                  </Typography>
+                </Box>
               </Box>
-            </Box>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          {/* Join Trip Card */}
+          <Card sx={{ 
+            flex: '1 1 400px',
+            cursor: 'pointer',
+            background: 'linear-gradient(135deg, #66bb6a 0%, #81c784 100%)',
+            color: 'white',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: '0 12px 24px rgba(102, 187, 106, 0.3)',
+            },
+            transition: 'all 0.3s ease',
+          }} onClick={() => setOpenJoinDialog(true)}>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" gap={3}>
+                <Avatar sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.2)', 
+                  width: 64, 
+                  height: 64,
+                  backdropFilter: 'blur(10px)',
+                }}>
+                  <GroupAdd sx={{ fontSize: 32 }} />
+                </Avatar>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="h5" component="h2" sx={{ fontWeight: 700, mb: 1 }}>
+                    Unirme a un Viaje
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.9 }}>
+                    Únete con un código de invitación
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
 
         {/* Trips Section */}
         <Box sx={{ mb: 6 }}>
           <Typography variant="h5" component="h2" sx={{ fontWeight: 700, mb: 4, color: 'text.primary' }}>
             Tus Viajes
           </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {trips.map((trip) => (
-            <Box key={trip.id} sx={{ flex: '1 1 300px', minWidth: 300 }}>
-                <Card sx={{ 
-                  height: '100%', 
-                  display: 'flex', 
-                  flexDirection: 'column',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                  },
-                  transition: 'all 0.3s ease',
-                }}>
-                  <CardContent sx={{ flexGrow: 1, p: 3 }}>
-                    <Box display="flex" alignItems="flex-start" gap={3} mb={3}>
-                      <Avatar sx={{ 
-                        bgcolor: trip.status === 'completed' ? 'success.main' : trip.status === 'planning' ? 'primary.main' : 'warning.main', 
-                        width: 56, 
-                        height: 56 
-                      }}>
-                        {getIcon(trip.image || 'default')}
-                      </Avatar>
-                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                        <Typography variant="h6" component="h3" sx={{ fontWeight: 700, mb: 1 }}>
-                          {trip.name}
-                        </Typography>
-                        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-                          {trip.destination}
-                        </Typography>
-                        <Chip
-                          label={getStatusLabel(trip.status)}
-                          color={getStatusColor(trip.status) as any}
-                          size="medium"
-                          sx={{ fontWeight: 600 }}
-                        />
-                      </Box>
-                    </Box>
+          
+          {trips.length === 0 ? (
+            <Card sx={{ p: 4, textAlign: 'center' }}>
+              <TravelExplore sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
+              <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+                No tienes viajes todavía
+              </Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                ¡Comienza tu aventura creando tu primer viaje o únete a uno existente!
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<Add />}
+                  onClick={() => router.push('/travel')}
+                >
+                  Crear Mi Primer Viaje
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="large"
+                  startIcon={<GroupAdd />}
+                  onClick={() => setOpenJoinDialog(true)}
+                >
+                  Unirme a un Viaje
+                </Button>
+              </Box>
+            </Card>
+          ) : (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {trips.map((trip) => {
+                const isPlanning = trip.status?.toLowerCase() === 'planning';
+                
+                return (
+                  <Box key={trip.id} sx={{ flex: '1 1 300px', minWidth: 300 }}>
+                    <Card sx={{ 
+                      height: '100%', 
+                      display: 'flex', 
+                      flexDirection: 'column',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                      },
+                      transition: 'all 0.3s ease',
+                    }}>
+                      <CardContent sx={{ flexGrow: 1, p: 3 }}>
+                        <Box display="flex" alignItems="flex-start" gap={3} mb={3}>
+                          <Avatar sx={{ 
+                            bgcolor: trip.status === 'completed' ? 'success.main' : trip.status === 'planning' ? 'primary.main' : 'warning.main', 
+                            width: 56, 
+                            height: 56 
+                          }}>
+                            {getIcon(trip.image || 'default')}
+                          </Avatar>
+                          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                            <Typography variant="h6" component="h3" sx={{ fontWeight: 700, mb: 1 }}>
+                              {trip.name}
+                            </Typography>
+                            <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+                              {trip.destination}
+                            </Typography>
+                            <Chip
+                              label={getStatusLabel(trip.status)}
+                              color={getStatusColor(trip.status) as any}
+                              size="medium"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </Box>
+                        </Box>
 
-                    <Box sx={{ mb: 3 }}>
-                      <Box display="flex" alignItems="center" gap={1.5} mb={1.5}>
-                        <Schedule sx={{ fontSize: 20, color: 'primary.main' }} />
-                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                          {formatDate(trip.startDate)} - {formatDate(trip.endDate)}
-                        </Typography>
-                      </Box>
+                        {/* Join Code Section */}
+                        {trip.joinCode && (
+                          <Box sx={{ 
+                            mb: 3, 
+                            p: 2, 
+                            bgcolor: 'action.hover', 
+                            borderRadius: 1,
+                            border: '1px dashed',
+                            borderColor: 'divider'
+                          }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 600 }}>
+                              Código de Invitación
+                            </Typography>
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <Typography variant="h6" sx={{ fontWeight: 700, fontFamily: 'monospace', letterSpacing: 1 }}>
+                                {trip.joinCode}
+                              </Typography>
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handleCopyJoinCode(trip.joinCode!)}
+                                sx={{ 
+                                  bgcolor: copiedCode === trip.joinCode ? 'success.main' : 'transparent',
+                                  color: copiedCode === trip.joinCode ? 'white' : 'inherit',
+                                  '&:hover': {
+                                    bgcolor: copiedCode === trip.joinCode ? 'success.dark' : 'action.hover',
+                                  }
+                                }}
+                              >
+                                <ContentCopy sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </Box>
+                            {copiedCode === trip.joinCode && (
+                              <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
+                                ¡Código copiado!
+                              </Typography>
+                            )}
+                          </Box>
+                        )}
 
-                      <Box display="flex" alignItems="center" gap={1.5}>
-                        <People sx={{ fontSize: 20, color: 'secondary.main' }} />
-                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                          {trip.participants} personas
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </CardContent>
+                        <Box sx={{ mb: 3 }}>
+                          <Box display="flex" alignItems="center" gap={1.5} mb={1.5}>
+                            <Schedule sx={{ fontSize: 20, color: 'primary.main' }} />
+                            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                              {formatDate(trip.startDate)} - {formatDate(trip.endDate)}
+                            </Typography>
+                          </Box>
 
-                  <CardActions sx={{ p: 3, pt: 0, gap: 1 }}>
-                    <Button
-                      size="medium"
-                      startIcon={<TrendingUp />}
-                      onClick={() => router.push(`/trip/${trip.id}/stats`)}
-                      sx={{ flexGrow: 1, fontWeight: 600 }}
-                    >
-                      Ver Stats
-                    </Button>
-                    <Button
-                      size="medium"
-                      startIcon={<Visibility />}
-                      variant="outlined"
-                      sx={{ flexGrow: 1, fontWeight: 600 }}
-                    >
-                      Detalles
-                    </Button>
-                  </CardActions>
-                </Card>
+                          <Box display="flex" alignItems="center" gap={1.5}>
+                            <People sx={{ fontSize: 20, color: 'secondary.main' }} />
+                            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                              {trip.participantCount || trip.participants || 0} {(trip.participantCount || trip.participants || 0) === 1 ? 'persona' : 'personas'}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </CardContent>
+
+                      <CardActions sx={{ p: 3, pt: 0, gap: 1 }}>
+                        {isPlanning ? (
+                          <>
+                            <Button
+                              size="medium"
+                              startIcon={<Place />}
+                              onClick={() => router.push(`/trip/${trip.id}/destinations`)}
+                              sx={{ flexGrow: 1, fontWeight: 600 }}
+                            >
+                              Destinos
+                            </Button>
+                            <Button
+                              size="medium"
+                              startIcon={<PersonAdd />}
+                              variant="outlined"
+                              onClick={() => router.push(`/trip/${trip.id}/add-users`)}
+                              sx={{ flexGrow: 1, fontWeight: 600 }}
+                            >
+                              Agregar Usuarios
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              size="medium"
+                              startIcon={<TrendingUp />}
+                              onClick={() => router.push(`/trip/${trip.id}/stats`)}
+                              sx={{ flexGrow: 1, fontWeight: 600 }}
+                            >
+                              Ver Stats
+                            </Button>
+                            <Button
+                              size="medium"
+                              startIcon={<Visibility />}
+                              variant="outlined"
+                              onClick={() => router.push(`/trip/${trip.id}/details`)}
+                              sx={{ flexGrow: 1, fontWeight: 600 }}
+                            >
+                              Detalles
+                            </Button>
+                          </>
+                        )}
+                      </CardActions>
+                    </Card>
+                  </Box>
+                );
+              })}
             </Box>
-          ))}
-        </Box>
+          )}
         </Box>
 
         {/* Quick Stats */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h5" component="h2" sx={{ fontWeight: 700, mb: 4, color: 'text.primary' }}>
-            Resumen de Actividad
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-            <Box sx={{ flex: '1 1 150px', minWidth: 150 }}>
-              <Card sx={{ 
-                textAlign: 'center', 
-                p: 3,
-                background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
-                color: 'white',
-              }}>
-                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-                  {trips.length}
-                </Typography>
-                <Typography variant="body1" sx={{ opacity: 0.9, fontWeight: 600 }}>
-                  Viajes Totales
-                </Typography>
-              </Card>
-            </Box>
-            <Box sx={{ flex: '1 1 150px', minWidth: 150 }}>
-              <Card sx={{ 
-                textAlign: 'center', 
-                p: 3,
-                background: 'linear-gradient(135deg, #66bb6a 0%, #81c784 100%)',
-                color: 'white',
-              }}>
-                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-                  {trips.filter(t => t.status === 'completed').length}
-                </Typography>
-                <Typography variant="body1" sx={{ opacity: 0.9, fontWeight: 600 }}>
-                  Completados
-                </Typography>
-              </Card>
-            </Box>
-            <Box sx={{ flex: '1 1 150px', minWidth: 150 }}>
-              <Card sx={{ 
-                textAlign: 'center', 
-                p: 3,
-                background: 'linear-gradient(135deg, #ff7043 0%, #ffab91 100%)',
-                color: 'white',
-              }}>
-                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-                  {trips.filter(t => t.status === 'planning').length}
-                </Typography>
-                <Typography variant="body1" sx={{ opacity: 0.9, fontWeight: 600 }}>
-                  Planificando
-                </Typography>
-              </Card>
-            </Box>
-            <Box sx={{ flex: '1 1 150px', minWidth: 150 }}>
-              <Card sx={{ 
-                textAlign: 'center', 
-                p: 3,
-                background: 'linear-gradient(135deg, #29b6f6 0%, #4fc3f7 100%)',
-                color: 'white',
-              }}>
-                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-                  {trips.reduce((acc, trip) => acc + trip.participants, 0)}
-                </Typography>
-                <Typography variant="body1" sx={{ opacity: 0.9, fontWeight: 600 }}>
-                  Participantes
-                </Typography>
-              </Card>
+        {trips.length > 0 && (
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h5" component="h2" sx={{ fontWeight: 700, mb: 4, color: 'text.primary' }}>
+              Resumen de Actividad
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              <Box sx={{ flex: '1 1 150px', minWidth: 150 }}>
+                <Card sx={{ 
+                  textAlign: 'center', 
+                  p: 3,
+                  background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
+                  color: 'white',
+                }}>
+                  <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
+                    {trips.length}
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.9, fontWeight: 600 }}>
+                    Viajes Totales
+                  </Typography>
+                </Card>
+              </Box>
+              <Box sx={{ flex: '1 1 150px', minWidth: 150 }}>
+                <Card sx={{ 
+                  textAlign: 'center', 
+                  p: 3,
+                  background: 'linear-gradient(135deg, #66bb6a 0%, #81c784 100%)',
+                  color: 'white',
+                }}>
+                  <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
+                    {trips.filter(t => t.status?.toLowerCase() === 'completed').length}
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.9, fontWeight: 600 }}>
+                    Completados
+                  </Typography>
+                </Card>
+              </Box>
+              <Box sx={{ flex: '1 1 150px', minWidth: 150 }}>
+                <Card sx={{ 
+                  textAlign: 'center', 
+                  p: 3,
+                  background: 'linear-gradient(135deg, #ff7043 0%, #ffab91 100%)',
+                  color: 'white',
+                }}>
+                  <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
+                    {trips.filter(t => t.status?.toLowerCase() === 'planning').length}
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.9, fontWeight: 600 }}>
+                    Planificando
+                  </Typography>
+                </Card>
+              </Box>
+              <Box sx={{ flex: '1 1 150px', minWidth: 150 }}>
+                <Card sx={{ 
+                  textAlign: 'center', 
+                  p: 3,
+                  background: 'linear-gradient(135deg, #29b6f6 0%, #4fc3f7 100%)',
+                  color: 'white',
+                }}>
+                  <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
+                    {trips.reduce((acc, trip) => acc + (trip.participantCount || trip.participants || 0), 0)}
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.9, fontWeight: 600 }}>
+                    Participantes
+                  </Typography>
+                </Card>
+              </Box>
             </Box>
           </Box>
-        </Box>
+        )}
       </Container>
+
+      {/* Join Trip Dialog */}
+      <Dialog open={openJoinDialog} onClose={() => setOpenJoinDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Unirme a un Viaje</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Ingresa el código de invitación que te compartieron para unirte al viaje
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Código de Viaje"
+            placeholder="Ej: ABC123XYZ"
+            value={tripCode}
+            onChange={(e) => setTripCode(e.target.value.toUpperCase())}
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setOpenJoinDialog(false)}>
+            Cancelar
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleJoinTrip}
+            disabled={!tripCode.trim()}
+          >
+            Unirme
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Speed Dial */}
       <SpeedDial
