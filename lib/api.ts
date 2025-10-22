@@ -82,7 +82,51 @@ export const api = {
   },
 
   getUserTrips: async (userId: number) => {
-    const response = await fetch(`${API_BASE_URL}/api/trips/get/${userId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/trips/user/${userId}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  // Obtener detalles de un viaje específico
+  getTripDetails: async (tripId: string, userId: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}?userId=${userId}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  // Obtener participantes de un viaje
+  getTripParticipants: async (tripId: string, userId: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}/participants?userId=${userId}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  // Unirse a un viaje por código
+  joinTripByCode: async (code: string, userId: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/trips/join?code=${encodeURIComponent(code)}&userId=${userId}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  // Actualizar un viaje
+  updateTrip: async (tripId: string, tripData: any, userId: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}/users/${userId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(tripData),
+    });
+    return response;
+  },
+
+  // Eliminar un viaje
+  deleteTrip: async (tripId: string, userId: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}?userId=${userId}`, {
+      method: 'DELETE',
       headers: getAuthHeaders(),
     });
     return response;

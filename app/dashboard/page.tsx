@@ -124,9 +124,25 @@ export default function DashboardPage() {
           
           setTrips(tripsWithParticipants);
         } else {
-          const errorText = await response.text();
-          console.error('Error al cargar viajes:', errorText);
-          setError('No se pudieron cargar los viajes. Por favor, intenta de nuevo.');
+          console.error('Error al cargar viajes - Status:', response.status);
+          console.error('Error al cargar viajes - StatusText:', response.statusText);
+          
+          let errorMessage = 'No se pudieron cargar los viajes. Por favor, intenta de nuevo.';
+          
+          try {
+            const errorText = await response.text();
+            console.error('Error al cargar viajes:', errorText);
+            
+            if (response.status === 404) {
+              errorMessage = 'El servidor backend no está disponible. Verifica que esté ejecutándose en el puerto 8080.';
+            } else if (response.status === 401) {
+              errorMessage = 'Error de autenticación. Por favor, inicia sesión nuevamente.';
+            }
+          } catch (parseError) {
+            console.error('Error al parsear respuesta del servidor:', parseError);
+          }
+          
+          setError(errorMessage);
         }
       } catch (err) {
         console.error('Error al cargar viajes:', err);
@@ -556,10 +572,10 @@ export default function DashboardPage() {
                               size="medium"
                               startIcon={<PersonAdd />}
                               variant="outlined"
-                              onClick={() => router.push(`/trip/${trip.id}/add-users`)}
+                              onClick={() => router.push(`/trip/${trip.id}/details`)}
                               sx={{ flexGrow: 1, fontWeight: 600 }}
                             >
-                              Agregar Usuarios
+                              Ver Detalles
                             </Button>
                           </>
                         ) : (
