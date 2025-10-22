@@ -105,12 +105,14 @@ export default function DashboardPage() {
               try {
                 const participantsResponse = await fetch(
                   `${API_BASE_URL}/api/trips/${trip.id}/participants?userId=${userId}`,
-                  { headers: getAuthHeaders() }
+                { headers: getAuthHeaders() }
                 );
-                
+      
                 if (participantsResponse.ok) {
-                  const participants = await participantsResponse.json();
-                  return { ...trip, participantCount: participants.length };
+                  const participantsData = await participantsResponse.json();
+                  // La respuesta tiene estructura: { success: true, data: [...], total: 2 }
+                  const participantCount = participantsData.total || participantsData.data?.length || 0;
+                  return { ...trip, participantCount };
                 }
                 return { ...trip, participantCount: trip.participants || 0 };
               } catch (err) {
@@ -236,34 +238,21 @@ export default function DashboardPage() {
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Fecha no disponible';
-    
+  
     try {
-      // Si la fecha viene en formato dd/mm/yyyy
-      let date;
-      
-      if (dateString.includes('/')) {
-        const parts = dateString.split('/');
-        if (parts.length === 3) {
-          // Convertir dd/mm/yyyy a formato Date (mes - 1 porque enero es 0)
-          date = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-        } else {
-          date = new Date(dateString);
-        }
-      } else {
-        // Si viene en formato ISO o similar
-        date = new Date(dateString);
-      }
-      
-      // Verificar si la fecha es válida
+      const [year, month, day] = dateString.split('-').map(Number);
+    
+      const date = new Date(year, month - 1, day);
+    
       if (isNaN(date.getTime())) return 'Fecha inválida';
-      
+    
       return date.toLocaleDateString('es-AR', { 
         day: '2-digit', 
         month: 'long', 
         year: 'numeric'
       });
     } catch (error) {
-      console.error('Error al formatear fecha:', error);
+      console.error('Error al formatear fecha:', error, dateString);
       return 'Fecha inválida';
     }
   };
@@ -539,7 +528,7 @@ export default function DashboardPage() {
                           <Box display="flex" alignItems="center" gap={1.5} mb={1.5}>
                             <Schedule sx={{ fontSize: 20, color: 'primary.main' }} />
                             <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                              {formatDate(trip.startDate)} - {formatDate(trip.endDate)}
+                              {formatDate(trip.dateI)} - {formatDate(trip.dateF)}
                             </Typography>
                           </Box>
 

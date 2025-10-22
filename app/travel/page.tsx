@@ -352,7 +352,7 @@ export default function CreateTripPage() {
     // Validar que la fecha de inicio no sea en el pasado
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    if (new Date(dateI) <= today) {
+    if (new Date(dateI).getDay < today.getDay) {
       toast.error('La fecha de inicio no puede ser en el pasado');
       setIsSubmitting(false);
       return;
