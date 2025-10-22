@@ -11,6 +11,7 @@ declare global {
   interface Window {
     google: any;
     initGoogleMaps: () => void;
+    currentLocationMarker?: any;
   }
 }
 
@@ -69,6 +70,27 @@ import {
   MyLocation,
   ContentCopy,
   CheckCircle,
+  Navigation,
+  Stop,
+  PlayArrow,
+  TurnRight,
+  TurnLeft,
+  Straight,
+  NavigationOutlined,
+  KeyboardArrowRight,
+  KeyboardArrowLeft,
+  KeyboardArrowUp,
+  KeyboardArrowDown,
+  NearMe,
+  Directions,
+  LocationOn,
+  Flag,
+  AccessTime,
+  Speed,
+  ExpandMore,
+  ExpandLess,
+  Clear,
+  Delete,
 } from '@mui/icons-material';
 
 interface TripDetails {
@@ -123,6 +145,51 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [routeDuration, setRouteDuration] = useState<string>('');
   const [distanceFromCurrent, setDistanceFromCurrent] = useState<string>('');
   
+  // Estados para navegación en tiempo real
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [navigationSteps, setNavigationSteps] = useState<any[]>([]);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [remainingDistance, setRemainingDistance] = useState<string>('');
+  const [remainingTime, setRemainingTime] = useState<string>('');
+  const [nextInstruction, setNextInstruction] = useState<string>('');
+  const [watchId, setWatchId] = useState<number | null>(null);
+  
+  // Estados para IA y recomendaciones
+  const [aiRecommendations, setAiRecommendations] = useState<any[]>([]);
+  const [lastRecommendationKm, setLastRecommendationKm] = useState<number>(0);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
+  
+  // Estados para chatbox con Gemini
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  
+  // Estados para zoom y seguimiento del mapa
+  const [mapZoom, setMapZoom] = useState(8);
+  const [isFollowingVehicle, setIsFollowingVehicle] = useState(false);
+  
+  // Estados para lugares recomendados
+  const [recommendedPlaces, setRecommendedPlaces] = useState<any[]>([]);
+  const [mapPins, setMapPins] = useState<any[]>([]);
+  const [selectedPlace, setSelectedPlace] = useState<any>(null);
+  
+  // Estados para tips
+  const [tips, setTips] = useState<any[]>([]);
+  const [showTipsList, setShowTipsList] = useState(false);
+  const [tipPins, setTipPins] = useState<any[]>([]);
+  
+  // Estados para navegación temporal a tips
+  const [isNavigatingToTip, setIsNavigatingToTip] = useState(false);
+  const [currentTipDestination, setCurrentTipDestination] = useState<any>(null);
+  const [originalDestination, setOriginalDestination] = useState<any>(null);
+
+  // Debug: Log cuando cambien los tips
+  useEffect(() => {
+    console.log('🔍 Tips cambiaron:', tips.length, tips);
+  }, [tips]);
+  
   // Referencias
   const mapRef = useRef<HTMLDivElement>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -149,7 +216,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
       }
 
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyAqcm8Rfw8eKvrI9u_1e7zNGzXt1rSeHlw&libraries=places,directions&callback=initGoogleMaps`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyAqcm8Rfw8eKvrI9u_1e7zNGzXt1rSeHlw&libraries=places,geometry&callback=initGoogleMaps`;
       script.async = true;
       script.defer = true;
       script.onerror = () => {
@@ -275,6 +342,14 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     if (isGoogleMapsLoaded && trip && mapRef.current) {
       initializeMap();
       calculateDistanceMetrics();
+      
+      // Calcular ruta automáticamente si tenemos origen y destino
+      if (trip.originLatitude && trip.originLongitude && 
+          trip.destinationLatitude && trip.destinationLongitude) {
+        setTimeout(() => {
+          calculateRoute();
+        }, 1000); // Pequeño delay para asegurar que el mapa esté listo
+      }
     }
   }, [isGoogleMapsLoaded, trip]);
 
@@ -284,6 +359,15 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
       calculateDistanceMetrics();
     }
   }, [currentLocation, trip]);
+
+  // Limpiar seguimiento de ubicación al desmontar
+  useEffect(() => {
+    return () => {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [watchId]);
 
   const initializeMap = () => {
     if (!mapRef.current || !trip || !window.google) return;
@@ -337,7 +421,10 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   };
 
   const calculateRoute = () => {
-    if (!directionsService || !directionsRenderer || !trip) return;
+    if (!directionsService || !directionsRenderer || !trip) {
+      console.log('Directions API no disponible');
+      return;
+    }
 
     // Verificar que tenemos coordenadas válidas
     if (!trip.originLatitude || !trip.originLongitude || 
@@ -349,43 +436,71 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     const origin = { lat: trip.originLatitude, lng: trip.originLongitude };
     const destination = { lat: trip.destinationLatitude, lng: trip.destinationLongitude };
 
+    console.log('Calculando ruta completa desde:', origin, 'hasta:', destination);
+
     // Determinar modo de transporte
     let travelMode = window.google.maps.TravelMode.DRIVING;
-    let vehicleIcon = '🚗';
     switch (trip.vehicle) {
       case 'avion':
         travelMode = window.google.maps.TravelMode.TRANSIT;
-        vehicleIcon = '✈️';
         break;
       case 'caminando':
         travelMode = window.google.maps.TravelMode.WALKING;
-        vehicleIcon = '🚶';
         break;
       default:
         travelMode = window.google.maps.TravelMode.DRIVING;
-        vehicleIcon = '🚗';
     }
 
-    directionsService.route({
+    // Configurar opciones de la ruta
+    const request: any = {
       origin: origin,
       destination: destination,
       travelMode: travelMode,
-      optimizeWaypoints: true,
-      provideRouteAlternatives: false
-    }, (result: any, status: any) => {
-      if (status === 'OK') {
-        directionsRenderer.setDirections(result);
+      provideRouteAlternatives: false,
+      avoidHighways: false,
+      avoidTolls: false,
+      optimizeWaypoints: true
+    };
+
+    // Agregar opciones específicas para automóvil
+    if (travelMode === window.google.maps.TravelMode.DRIVING) {
+      request.drivingOptions = {
+        departureTime: new Date(),
+        trafficModel: window.google.maps.TrafficModel.OPTIMISTIC
+      };
+    }
+
+    directionsService.route(request, (result: any, status: any) => {
+      if (status === window.google.maps.DirectionsStatus.OK) {
+        console.log('Ruta calculada exitosamente:', result);
         
-        // Calcular distancia y duración total
+        // Configurar el renderer de direcciones
+        directionsRenderer.setDirections(result);
+        directionsRenderer.setOptions({
+          suppressMarkers: false,
+          polylineOptions: {
+            strokeColor: '#1976d2',
+            strokeWeight: 6,
+            strokeOpacity: 0.8
+          },
+          markerOptions: {
+            icon: {
+              url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+              scaledSize: new window.google.maps.Size(32, 32)
+            }
+          }
+        });
+
+        // Calcular métricas de la ruta
         let totalDistance = 0;
         let totalDuration = 0;
         
         result.routes[0].legs.forEach((leg: any) => {
-          totalDistance += leg.distance.value; // en metros
-          totalDuration += leg.duration.value; // en segundos
+          totalDistance += leg.distance.value;
+          totalDuration += leg.duration.value;
         });
         
-        // Convertir a unidades más legibles
+        // Convertir a unidades legibles
         const distanceKm = (totalDistance / 1000).toFixed(1);
         const durationHours = Math.floor(totalDuration / 3600);
         const durationMinutes = Math.floor((totalDuration % 3600) / 60);
@@ -400,21 +515,117 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
         setRouteDistance(`${distanceKm} km`);
         setRouteDuration(durationText);
         
-        console.log(`Ruta calculada: ${distanceKm} km, ${durationText} (${vehicleIcon})`);
+        console.log(`Ruta completa: ${distanceKm} km, ${durationText}`);
         
-        // Ajustar el zoom para mostrar toda la ruta
+        // Ajustar vista del mapa para mostrar toda la ruta
         const bounds = new window.google.maps.LatLngBounds();
         result.routes[0].legs.forEach((leg: any) => {
           bounds.extend(leg.start_location);
           bounds.extend(leg.end_location);
         });
         map.fitBounds(bounds);
+        
+        // Agregar marcadores personalizados
+        new window.google.maps.Marker({
+          position: origin,
+          map: map,
+          title: 'Origen del viaje',
+          icon: {
+            url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+            scaledSize: new window.google.maps.Size(40, 40)
+          }
+        });
+        
+        new window.google.maps.Marker({
+          position: destination,
+          map: map,
+          title: 'Destino del viaje',
+          icon: {
+            url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+            scaledSize: new window.google.maps.Size(40, 40)
+          }
+        });
+        
       } else {
         console.error('Error calculando ruta:', status);
         setRouteDistance('Error al calcular ruta');
         setRouteDuration('');
+        toast.error('Error al calcular la ruta. Verifica las coordenadas del viaje.');
       }
     });
+  };
+
+  // Función fallback para mostrar ruta sin Directions API
+  const showRouteFallback = (origin: {lat: number, lng: number}, destination: {lat: number, lng: number}) => {
+    if (!map) return;
+
+    // Agregar marcadores de origen y destino
+    const originMarker = new window.google.maps.Marker({
+      position: origin,
+      map: map,
+      title: 'Origen del viaje',
+      icon: {
+        url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+        scaledSize: new window.google.maps.Size(32, 32)
+      }
+    });
+    
+    const destinationMarker = new window.google.maps.Marker({
+      position: destination,
+      map: map,
+      title: 'Destino del viaje',
+      icon: {
+        url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+        scaledSize: new window.google.maps.Size(32, 32)
+      }
+    });
+
+    // Dibujar línea recta entre origen y destino
+    const routeLine = new window.google.maps.Polyline({
+      path: [origin, destination],
+      geodesic: true,
+      strokeColor: '#1976d2',
+      strokeOpacity: 0.8,
+      strokeWeight: 4,
+      map: map
+    });
+
+    // Calcular distancia en línea recta
+    const distance = calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng);
+    setRouteDistance(`${distance.toFixed(1)} km`);
+    
+    // Estimar tiempo basado en el vehículo
+    let estimatedTime = 0;
+    switch (trip?.vehicle) {
+      case 'avion':
+        estimatedTime = Math.ceil(distance / 800); // 800 km/h promedio
+        break;
+      case 'caminando':
+        estimatedTime = Math.ceil(distance / 5); // 5 km/h promedio
+        break;
+      default: // auto
+        estimatedTime = Math.ceil(distance / 60); // 60 km/h promedio
+        break;
+    }
+    
+    const hours = Math.floor(estimatedTime);
+    const minutes = Math.round((estimatedTime - hours) * 60);
+    let durationText = '';
+    if (hours > 0) {
+      durationText = `${hours}h ${minutes}m`;
+    } else {
+      durationText = `${minutes}m`;
+    }
+    
+    setRouteDuration(durationText);
+    
+    // Ajustar el zoom para mostrar ambos puntos
+    const bounds = new window.google.maps.LatLngBounds();
+    bounds.extend(origin);
+    bounds.extend(destination);
+    map.fitBounds(bounds);
+    
+    console.log(`Ruta fallback: ${distance.toFixed(1)} km, ${durationText}`);
   };
 
   const getCurrentLocation = () => {
@@ -501,6 +712,1098 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     }
   };
 
+  // Función auxiliar para aplicar zoom de manera robusta
+  const applyZoomToLocation = (location: { lat: number; lng: number }, context: string) => {
+    if (!map || !location) {
+      console.warn(`⚠️ No se puede aplicar zoom en ${context}: mapa o ubicación no disponible`);
+      return;
+    }
+
+    console.log(`🔍 Aplicando zoom en ${context}:`, location);
+    
+    const zoom = trip?.vehicle === 'auto' ? 16 : 18;
+    
+    // Aplicar zoom inmediatamente
+    map.setCenter(location);
+    map.setZoom(zoom);
+    setMapZoom(zoom);
+    console.log(`🔍 Zoom aplicado en ${context}: ${zoom}x`);
+    
+    // Múltiples intentos para asegurar el zoom
+    const applyZoomAttempt = (attempt: number) => {
+      setTimeout(() => {
+        if (map && location) {
+          map.setCenter(location);
+          map.setZoom(zoom);
+          console.log(`🔍 Intento ${attempt} de zoom en ${context}: ${zoom}x`);
+        }
+      }, attempt * 300);
+    };
+    
+    // Aplicar zoom en múltiples momentos
+    applyZoomAttempt(1); // 300ms
+    applyZoomAttempt(2); // 600ms
+    applyZoomAttempt(3); // 900ms
+  };
+
+  // Función para iniciar navegación en tiempo real
+  const startNavigation = () => {
+    if (!trip || !currentLocation || !directionsService || !directionsRenderer) {
+      toast.error('No se puede iniciar la navegación. Verifica tu ubicación y la conexión.');
+      return;
+    }
+
+    setIsNavigating(true);
+    setCurrentStep(0);
+    
+    // Para navegación, usar ubicación actual como origen
+    const origin = currentLocation;
+    const destination = { 
+      lat: trip.destinationLatitude!, 
+      lng: trip.destinationLongitude! 
+    };
+
+    console.log('🚗 Iniciando navegación desde:', origin, 'hasta:', destination);
+
+    // Configurar opciones de navegación
+    const navigationRequest = {
+      origin: origin,
+      destination: destination,
+      travelMode: window.google.maps.TravelMode.DRIVING,
+      provideRouteAlternatives: false,
+      avoidHighways: false,
+      avoidTolls: false,
+      drivingOptions: {
+        departureTime: new Date(),
+        trafficModel: window.google.maps.TrafficModel.OPTIMISTIC
+      }
+    };
+
+    directionsService.route(navigationRequest, (result: any, status: any) => {
+      if (status === window.google.maps.DirectionsStatus.OK) {
+        console.log('✅ Ruta de navegación calculada:', result);
+        
+        const route = result.routes[0];
+        const steps = route.legs[0].steps;
+        setNavigationSteps(steps);
+        
+        // Configurar renderer para navegación con estilo Google Maps
+        directionsRenderer.setDirections(result);
+        directionsRenderer.setOptions({
+          suppressMarkers: false,
+          polylineOptions: {
+            strokeColor: '#1976d2',
+            strokeWeight: 8,
+            strokeOpacity: 0.9
+          },
+          markerOptions: {
+            icon: {
+              url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+              scaledSize: new window.google.maps.Size(24, 24)
+            }
+          }
+        });
+
+        // Calcular métricas de navegación
+        let totalDistance = 0;
+        let totalDuration = 0;
+        
+        route.legs.forEach((leg: any) => {
+          totalDistance += leg.distance.value;
+          totalDuration += leg.duration.value;
+        });
+        
+        const distanceKm = (totalDistance / 1000).toFixed(1);
+        const durationHours = Math.floor(totalDuration / 3600);
+        const durationMinutes = Math.floor((totalDuration % 3600) / 60);
+        
+        let durationText = '';
+        if (durationHours > 0) {
+          durationText = `${durationHours}h ${durationMinutes}m`;
+        } else {
+          durationText = `${durationMinutes}m`;
+        }
+        
+        setRemainingDistance(`${distanceKm} km`);
+        setRemainingTime(durationText);
+        
+        // Iniciar seguimiento de ubicación
+        startLocationTracking();
+        
+        // Activar seguimiento automático del vehículo
+        setIsFollowingVehicle(true);
+        
+        // Configurar primera instrucción
+        if (steps.length > 0) {
+          setNextInstruction(steps[0].instructions.replace(/<[^>]*>/g, ''));
+          updateNavigationMetrics(steps, 0);
+        }
+        
+        // Inicializar chat con mensaje de bienvenida
+        initializeChat();
+        
+        // Ajustar vista para navegación con zoom cercano a la ubicación actual
+        if (currentLocation) {
+          applyZoomToLocation(currentLocation, 'inicio de navegación');
+        } else {
+          console.log('⚠️ No hay ubicación actual, usando fallback');
+          // Fallback: ajustar vista a la ruta completa
+          const bounds = new window.google.maps.LatLngBounds();
+          route.legs.forEach((leg: any) => {
+            bounds.extend(leg.start_location);
+            bounds.extend(leg.end_location);
+          });
+          map.fitBounds(bounds);
+        }
+        
+        toast.success('🚗 Navegación iniciada. ¡Buen viaje!');
+        
+      } else {
+        console.error('❌ Error calculando ruta de navegación:', status);
+        toast.error('Error al calcular la ruta de navegación');
+        setIsNavigating(false);
+      }
+    });
+  };
+
+  // Función para navegación simple (fallback)
+  const startSimpleNavigation = (origin: {lat: number, lng: number}, destination: {lat: number, lng: number}) => {
+    // Crear instrucciones simples
+    const distance = calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng);
+    const estimatedTime = Math.ceil(distance / 60); // 60 km/h promedio
+    
+    const simpleSteps = [{
+      instructions: `Dirígete hacia ${trip?.destination}`,
+      distance: { text: `${distance.toFixed(1)} km`, value: distance * 1000 },
+      duration: { text: `${estimatedTime} min`, value: estimatedTime * 60 }
+    }];
+    
+    setNavigationSteps(simpleSteps);
+    setNextInstruction(simpleSteps[0].instructions);
+    setRemainingDistance(`${distance.toFixed(1)} km`);
+    setRemainingTime(`${estimatedTime} min`);
+    
+    // Iniciar seguimiento de ubicación
+    startLocationTracking();
+    
+    toast.success('Navegación simple iniciada. ¡Buen viaje!');
+  };
+
+  // Función para detener navegación
+  const stopNavigation = () => {
+    setIsNavigating(false);
+    setNavigationSteps([]);
+    setCurrentStep(0);
+    setRemainingDistance('');
+    setRemainingTime('');
+    setNextInstruction('');
+    setIsFollowingVehicle(false);
+    setMapZoom(8);
+    
+    // Limpiar chat
+    setChatMessages([]);
+    setIsChatOpen(false);
+    
+    // Limpiar lugares recomendados
+    setRecommendedPlaces([]);
+    mapPins.forEach(pin => pin.setMap(null));
+    setMapPins([]);
+    setSelectedPlace(null);
+    
+    if (watchId) {
+      navigator.geolocation.clearWatch(watchId);
+      setWatchId(null);
+    }
+    
+    toast.info('Navegación detenida');
+  };
+
+  // Función para iniciar seguimiento de ubicación
+  const startLocationTracking = () => {
+    if (watchId) {
+      navigator.geolocation.clearWatch(watchId);
+    }
+
+    console.log('📍 Iniciando seguimiento GPS de alta precisión...');
+
+    const id = navigator.geolocation.watchPosition(
+      (position) => {
+        const newLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        
+        console.log('📍 Nueva ubicación GPS:', newLocation);
+        setCurrentLocation(newLocation);
+        
+        if (isNavigating && navigationSteps.length > 0) {
+          updateNavigationProgress(newLocation);
+        }
+        
+        // Actualizar marcador de ubicación actual en el mapa
+        if (map) {
+          // Remover marcador anterior si existe
+          if ((window as any).currentLocationMarker) {
+            (window as any).currentLocationMarker.setMap(null);
+          }
+          
+          // Determinar icono según el vehículo
+          let vehicleIcon = 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png';
+          let iconSize = 32;
+          
+          if (trip?.vehicle === 'auto') {
+            vehicleIcon = 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'; // Usar blue-dot como fallback
+            iconSize = 40;
+          } else if (trip?.vehicle === 'caminando') {
+            vehicleIcon = 'https://maps.google.com/mapfiles/ms/icons/walking.png';
+            iconSize = 28;
+          }
+          
+          // Crear nuevo marcador de ubicación actual
+          (window as any).currentLocationMarker = new window.google.maps.Marker({
+            position: newLocation,
+            map: map,
+            title: `Tu ubicación actual (${trip?.vehicle === 'auto' ? 'En auto' : trip?.vehicle === 'caminando' ? 'Caminando' : 'En auto'})`,
+            icon: {
+              url: vehicleIcon,
+              scaledSize: new window.google.maps.Size(iconSize, iconSize),
+              anchor: new window.google.maps.Point(iconSize/2, iconSize/2)
+            },
+            animation: window.google.maps.Animation.BOUNCE
+          });
+          
+          // Si está navegando, hacer zoom y seguir al vehículo
+          if (isNavigating && isFollowingVehicle) {
+            // Centrar el mapa en la ubicación actual
+            map.setCenter(newLocation);
+            
+            // Ajustar zoom para mostrar calles cercanas
+            const newZoom = trip?.vehicle === 'auto' ? 16 : 18; // Zoom más cercano para caminando
+            map.setZoom(newZoom);
+            setMapZoom(newZoom);
+            
+            console.log(`📍 Mapa centrado en vehículo - Zoom: ${newZoom}`);
+          }
+        }
+      },
+      (error) => {
+        console.error('❌ Error en seguimiento de ubicación:', error);
+        let errorMessage = 'Error en el seguimiento de ubicación';
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Permisos de ubicación denegados. Activa la ubicación en tu navegador.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Ubicación no disponible. Verifica tu conexión GPS.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Timeout obteniendo ubicación. Intenta nuevamente.';
+            break;
+        }
+        
+        toast.error(errorMessage);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 10000
+      }
+    );
+    
+    setWatchId(id);
+    console.log('✅ Seguimiento GPS iniciado con ID:', id);
+  };
+
+  // Función para actualizar progreso de navegación
+  const updateNavigationProgress = (userLocation: {lat: number, lng: number}) => {
+    if (!navigationSteps.length) return;
+
+    console.log('🔄 Actualizando progreso de navegación...');
+
+    // Encontrar el paso más cercano a la ubicación actual
+    let closestStepIndex = 0;
+    let minDistance = Infinity;
+
+    navigationSteps.forEach((step, index) => {
+      const stepLocation = step.start_location;
+      const distance = calculateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        stepLocation.lat(),
+        stepLocation.lng()
+      );
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestStepIndex = index;
+      }
+    });
+
+    // Solo actualizar si el paso cambió
+    if (closestStepIndex !== currentStep) {
+      console.log(`📍 Paso actualizado: ${currentStep} → ${closestStepIndex}`);
+      setCurrentStep(closestStepIndex);
+      
+      // Actualizar métricas
+      updateNavigationMetrics(navigationSteps, closestStepIndex);
+      
+      // Actualizar siguiente instrucción
+      if (closestStepIndex < navigationSteps.length - 1) {
+        const nextStep = navigationSteps[closestStepIndex + 1];
+        setNextInstruction(nextStep.instructions.replace(/<[^>]*>/g, ''));
+        console.log('📋 Nueva instrucción:', nextStep.instructions);
+      } else {
+        setNextInstruction('🎉 ¡Has llegado a tu destino!');
+        console.log('🎉 Navegación completada');
+        
+        // Detener navegación automáticamente al llegar
+        setTimeout(() => {
+          stopNavigation();
+          toast.success('¡Has llegado a tu destino!');
+        }, 3000);
+      }
+    }
+  };
+
+  // Función para actualizar métricas de navegación
+  const updateNavigationMetrics = (steps: any[], currentStepIndex: number) => {
+    let totalDistance = 0;
+    let totalDuration = 0;
+
+    // Calcular distancia y tiempo restante desde el paso actual
+    for (let i = currentStepIndex; i < steps.length; i++) {
+      totalDistance += steps[i].distance.value;
+      totalDuration += steps[i].duration.value;
+    }
+
+    // Convertir a unidades legibles
+    const distanceKm = (totalDistance / 1000).toFixed(1);
+    const durationHours = Math.floor(totalDuration / 3600);
+    const durationMinutes = Math.floor((totalDuration % 3600) / 60);
+    
+    let durationText = '';
+    if (durationHours > 0) {
+      durationText = `${durationHours}h ${durationMinutes}m`;
+    } else {
+      durationText = `${durationMinutes}m`;
+    }
+
+    setRemainingDistance(`${distanceKm} km`);
+    setRemainingTime(durationText);
+    
+    // Verificar si necesitamos obtener recomendaciones de IA cada 100km
+    const currentDistanceKm = parseFloat(distanceKm);
+    if (currentDistanceKm > 0 && currentDistanceKm % 100 < 10 && currentDistanceKm > lastRecommendationKm + 90) {
+      getAIRecommendations(currentLocation, currentDistanceKm);
+    }
+  };
+
+  // Función para obtener recomendaciones de Gemini AI
+  const getAIRecommendations = async (location: {lat: number, lng: number} | null, distanceTraveled: number) => {
+    if (!location || isLoadingRecommendations) return;
+    
+    setIsLoadingRecommendations(true);
+    setLastRecommendationKm(distanceTraveled);
+    
+    try {
+      console.log('🤖 Obteniendo recomendaciones de Gemini AI...');
+      
+      // Usar Google Places API para encontrar lugares cercanos
+      const placesService = new window.google.maps.places.PlacesService(map);
+      const request = {
+        location: new window.google.maps.LatLng(location.lat, location.lng),
+        radius: 50000, // 50km de radio
+        type: ['tourist_attraction', 'restaurant', 'gas_station', 'lodging', 'shopping_mall']
+      };
+      
+      placesService.nearbySearch(request, async (results: any[], status: any) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
+          // Preparar contexto para Gemini
+          const nearbyPlaces = results.slice(0, 10).map(place => ({
+            name: place.name,
+            rating: place.rating,
+            types: place.types,
+            vicinity: place.vicinity
+          }));
+          
+          // Llamar a Gemini AI
+          const geminiResponse = await callGeminiAI(nearbyPlaces, distanceTraveled, trip);
+          
+          if (geminiResponse && geminiResponse.recommendations) {
+            setAiRecommendations(geminiResponse.recommendations);
+            setShowRecommendations(true);
+            toast.info('🤖 Nuevas recomendaciones de IA disponibles');
+          }
+        } else {
+          console.log('No se encontraron lugares cercanos');
+        }
+        setIsLoadingRecommendations(false);
+      });
+      
+    } catch (error) {
+      console.error('Error obteniendo recomendaciones de IA:', error);
+      setIsLoadingRecommendations(false);
+    }
+  };
+
+  // Función para llamar a Gemini AI
+  const callGeminiAI = async (nearbyPlaces: any[], distanceTraveled: number, tripData: any) => {
+    try {
+      const prompt = `
+        Eres un asistente de viajes inteligente. El usuario está viajando de ${tripData?.origin || 'origen'} a ${tripData?.destination || 'destino'} 
+        y ha recorrido ${distanceTraveled.toFixed(1)} km. 
+        
+        Lugares cercanos disponibles:
+        ${nearbyPlaces.map(place => `- ${place.name} (${place.rating}/5 estrellas) - ${place.types.join(', ')}`).join('\n')}
+        
+        Proporciona 3-5 recomendaciones específicas y útiles para el viajero en este punto del viaje. 
+        Considera:
+        - Si necesita descansar (restaurantes, gasolineras)
+        - Atracciones turísticas interesantes
+        - Lugares para alojarse si es un viaje largo
+        - Actividades según el tipo de viaje
+        
+        Responde en formato JSON con:
+        {
+          "recommendations": [
+            {
+              "title": "Título de la recomendación",
+              "description": "Descripción detallada",
+              "type": "restaurant|attraction|gas_station|lodging|activity",
+              "priority": "high|medium|low",
+              "estimated_time": "tiempo estimado en minutos"
+            }
+          ]
+        }
+      `;
+      
+      // Aquí integrarías con la API de Gemini
+      // Por ahora, simularemos una respuesta
+      const mockResponse = {
+        recommendations: [
+          {
+            title: "Parada para descansar",
+            description: "Te recomendamos hacer una parada en el próximo pueblo para estirar las piernas y tomar algo.",
+            type: "activity",
+            priority: "high",
+            estimated_time: "30"
+          },
+          {
+            title: "Gasolinera cercana",
+            description: "Hay una gasolinera a 5km con buenos precios y servicios.",
+            type: "gas_station",
+            priority: "medium",
+            estimated_time: "15"
+          }
+        ]
+      };
+      
+      return mockResponse;
+      
+    } catch (error) {
+      console.error('Error llamando a Gemini AI:', error);
+      return null;
+    }
+  };
+
+  // Función para inicializar el chat
+  const initializeChat = () => {
+    const locationContext = currentLocation 
+      ? `Estás ubicado en las coordenadas ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}`
+      : 'No tengo acceso a tu ubicación actual';
+    
+    const welcomeMessage = {
+      id: Date.now(),
+      type: 'ai',
+      message: `¡Hola! Soy tu asistente de viajes. Estoy aquí para ayudarte durante tu viaje a ${trip?.destination}. ${locationContext}. ¿En qué puedo ayudarte?`,
+      timestamp: new Date()
+    };
+    
+    setChatMessages([welcomeMessage]);
+    setIsChatOpen(true);
+  };
+
+  // Función para enviar mensaje al chat
+  const sendChatMessage = async () => {
+    if (!chatInput.trim()) return;
+    
+    const userMessage = {
+      id: Date.now(),
+      type: 'user',
+      message: chatInput,
+      timestamp: new Date()
+    };
+    
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setIsTyping(true);
+    
+    try {
+      // Simular respuesta de Gemini AI
+      const aiResponse = await generateAIResponse(chatInput);
+      
+      setTimeout(() => {
+        const aiMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          message: aiResponse,
+          timestamp: new Date()
+        };
+        
+        setChatMessages(prev => [...prev, aiMessage]);
+        setIsTyping(false);
+      }, 500); // Reducido de 1500ms a 500ms
+      
+    } catch (error) {
+      console.error('Error enviando mensaje:', error);
+      setIsTyping(false);
+    }
+  };
+
+  // Función para generar respuesta de IA
+  const generateAIResponse = async (userInput: string): Promise<string> => {
+    const lowerInput = userInput.toLowerCase();
+    
+    try {
+      // Detectar tipo de consulta y generar respuesta contextual
+      if (lowerInput.includes('comer') || lowerInput.includes('restaurante') || lowerInput.includes('comida')) {
+        return await handleRestaurantQuery();
+      } else if (lowerInput.includes('dormir') || lowerInput.includes('hotel') || lowerInput.includes('alojamiento')) {
+        return await handleAccommodationQuery();
+      } else if (lowerInput.includes('atracción') || lowerInput.includes('turístico') || lowerInput.includes('visitar')) {
+        return await handleAttractionQuery();
+    } else if (lowerInput.includes('gasolinera') || lowerInput.includes('combustible') || lowerInput.includes('gas') || lowerInput.includes('nafta') || lowerInput.includes('cargar')) {
+      return await handleGasStationQuery();
+      } else if (lowerInput.includes('tráfico') || lowerInput.includes('ruta') || lowerInput.includes('dirección')) {
+        return await handleTrafficQuery();
+      } else {
+        return await handleGeneralQuery();
+      }
+    } catch (error) {
+      console.error('Error generando respuesta de IA:', error);
+      return 'Lo siento, hubo un problema procesando tu consulta. Intenta de nuevo.';
+    }
+  };
+
+  // Función para manejar consultas de restaurantes
+  const handleRestaurantQuery = async () => {
+    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte restaurantes.";
+    
+    try {
+      // Buscar lugares de forma asíncrona sin bloquear la respuesta
+      findNearbyPlaces('restaurant').then(places => {
+        console.log('🍽️ Resultados de búsqueda de restaurantes:', places);
+        if (places.length > 0) {
+          const topPlaces = places.slice(0, 3);
+          setRecommendedPlaces(topPlaces);
+          addPinsToMap(topPlaces);
+          
+          // Agregar a tips
+          const newTips = topPlaces.map(place => ({
+            ...place,
+            tipType: 'restaurant',
+            tipIcon: '🍽️'
+          }));
+          console.log('🍽️ Agregando tips de restaurantes:', newTips);
+          setTips(prev => {
+            const updated = [...prev, ...newTips];
+            console.log('📝 Tips actualizados:', updated);
+            return updated;
+          });
+          
+          // Agregar pins al mapa con delay para asegurar que el mapa esté listo
+          setTimeout(() => {
+            addTipPinsToMap(newTips);
+          }, 500);
+        } else {
+          console.log('❌ No se encontraron restaurantes');
+        }
+      }).catch(error => {
+        console.error('❌ Error buscando restaurantes:', error);
+        // Mostrar mensaje de error al usuario
+        toast.error('Error buscando restaurantes. Intenta de nuevo.');
+      });
+      
+      const locationContext = ` (cerca de ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)})`;
+      return `🍽️ **Buscando restaurantes reales cercanos${locationContext}...**\n\nEstoy consultando Google Maps para encontrar restaurantes reales cerca de tu ubicación actual (menos de 5km). Los resultados aparecerán en el mapa y en la lista de abajo.\n\n💡 **Tip:** Puedes preguntarme por otros tipos de lugares como hoteles, atracciones o gasolineras.`;
+    } catch (error) {
+      return "Hubo un problema buscando restaurantes. Intenta de nuevo en un momento.";
+    }
+  };
+
+  // Función para manejar consultas de alojamiento
+  const handleAccommodationQuery = async () => {
+    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte alojamiento.";
+    
+    try {
+      // Buscar lugares de forma asíncrona sin bloquear la respuesta
+      findNearbyPlaces('lodging').then(places => {
+        if (places.length > 0) {
+          const topPlaces = places.slice(0, 3);
+          setRecommendedPlaces(topPlaces);
+          addPinsToMap(topPlaces);
+          
+          // Agregar a tips
+          const newTips = topPlaces.map(place => ({
+            ...place,
+            tipType: 'lodging',
+            tipIcon: '🏨'
+          }));
+          setTips(prev => [...prev, ...newTips]);
+          addTipPinsToMap(newTips);
+        }
+      }).catch(error => {
+        console.error('Error buscando alojamiento:', error);
+      });
+      
+      const locationContext = ` (cerca de ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)})`;
+      return `🏨 **Buscando alojamiento real${locationContext}...**\n\nEstoy consultando Google Maps para encontrar hoteles y opciones de alojamiento reales cerca de tu ubicación actual. Los resultados aparecerán en el mapa y en la lista de abajo.\n\n💡 **Tip:** Perfecto para viajes largos o si necesitas descansar.`;
+    } catch (error) {
+      return "Hubo un problema buscando alojamiento. Intenta de nuevo en un momento.";
+    }
+  };
+
+  // Función para manejar consultas de atracciones
+  const handleAttractionQuery = async () => {
+    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte atracciones.";
+    
+    try {
+      // Buscar lugares de forma asíncrona sin bloquear la respuesta
+      findNearbyPlaces('tourist_attraction').then(places => {
+        if (places.length > 0) {
+          const topPlaces = places.slice(0, 3);
+          setRecommendedPlaces(topPlaces);
+          addPinsToMap(topPlaces);
+          
+          // Agregar a tips
+          const newTips = topPlaces.map(place => ({
+            ...place,
+            tipType: 'tourist_attraction',
+            tipIcon: '🎯'
+          }));
+          setTips(prev => [...prev, ...newTips]);
+          addTipPinsToMap(newTips);
+        }
+      }).catch(error => {
+        console.error('Error buscando atracciones:', error);
+      });
+      
+      const locationContext = ` (cerca de ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)})`;
+      return `🎯 **Buscando atracciones reales${locationContext}...**\n\nEstoy consultando Google Maps para encontrar atracciones turísticas reales cerca de tu ubicación actual. Los resultados aparecerán en el mapa y en la lista de abajo.\n\n💡 **Tip:** Perfecto para turismo y descubrir nuevos lugares.`;
+    } catch (error) {
+      return "Hubo un problema buscando atracciones. Intenta de nuevo en un momento.";
+    }
+  };
+
+  // Función para manejar consultas de gasolineras
+  const handleGasStationQuery = async () => {
+    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte gasolineras.";
+    
+    try {
+      // Buscar lugares de forma asíncrona sin bloquear la respuesta
+      findNearbyPlaces('gas_station').then(places => {
+        if (places.length > 0) {
+          const topPlaces = places.slice(0, 3);
+          setRecommendedPlaces(topPlaces);
+          addPinsToMap(topPlaces);
+          
+          // Agregar a tips
+          const newTips = topPlaces.map(place => ({
+            ...place,
+            tipType: 'gas_station',
+            tipIcon: '⛽'
+          }));
+          setTips(prev => [...prev, ...newTips]);
+          addTipPinsToMap(newTips);
+        }
+      }).catch(error => {
+        console.error('Error buscando gasolineras:', error);
+      });
+      
+      const locationContext = ` (cerca de ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)})`;
+      return `⛽ **Buscando gasolineras reales${locationContext}...**\n\nEstoy consultando Google Maps para encontrar gasolineras reales cerca de tu ubicación actual. Los resultados aparecerán en el mapa y en la lista de abajo.\n\n💡 **Tip:** Esencial para viajes largos en auto.`;
+    } catch (error) {
+      return "Hubo un problema buscando gasolineras. Intenta de nuevo en un momento.";
+    }
+  };
+
+  // Función para manejar consultas de tráfico
+  const handleTrafficQuery = async () => {
+    const locationContext = currentLocation 
+      ? ` (desde tu ubicación actual: ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)})`
+      : '';
+    
+    return `🚦 **Estado del tráfico${locationContext}:**\n\nEl tráfico se ve fluido en tu ruta actual. Deberías llegar a tiempo a tu destino. Si encuentras congestión, te sugeriré rutas alternativas.\n\n💡 **Consejo:** Mantén la navegación activa para recibir actualizaciones en tiempo real del tráfico.`;
+  };
+
+  // Función para manejar consultas generales
+  const handleGeneralQuery = async () => {
+    const locationContext = currentLocation 
+      ? ` (ubicación actual: ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)})`
+      : '';
+    
+    const responses = [
+      `¿En qué puedo ayudarte específicamente${locationContext}? Puedo recomendarte restaurantes, alojamiento, atracciones turísticas o gasolineras.`,
+      `Estoy aquí para ayudarte durante tu viaje${locationContext}. ¿Te gustaría que te recomiende lugares para comer, dormir o visitar?`,
+      `Puedo ayudarte a encontrar los mejores lugares cerca de tu ubicación actual${locationContext}. ¿Qué tipo de lugar te interesa?`,
+      `¿Hay algo específico que necesites durante tu viaje${locationContext}? Puedo buscar restaurantes, hoteles, atracciones o gasolineras.`
+    ];
+    
+    return responses[Math.floor(Math.random() * responses.length)];
+  };
+
+  // Función para buscar lugares cercanos usando Google Places API real
+  const findNearbyPlaces = async (placeType: string): Promise<any[]> => {
+    if (!map || !currentLocation) {
+      console.error('❌ Mapa o ubicación no disponible');
+      return [];
+    }
+    
+    try {
+      console.log('🔍 Buscando lugares reales cercanos...', {
+        placeType,
+        location: currentLocation,
+        radius: '5km'
+      });
+      
+      // Usar la API clásica de Places que funciona mejor
+      const placesService = new window.google.maps.places.PlacesService(map);
+      
+      const request = {
+        location: new window.google.maps.LatLng(currentLocation.lat, currentLocation.lng),
+        type: placeType,
+        rankBy: window.google.maps.places.RankBy.DISTANCE
+      };
+      
+      console.log('🗺️ Request a Places API:', request);
+      
+      return new Promise((resolve) => {
+        placesService.nearbySearch(request, (results: any[], status: any) => {
+          console.log('📍 Status de búsqueda:', status);
+          console.log('📍 Resultados encontrados:', results?.length || 0);
+          
+          if (status === window.google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+            console.log('✅ Lugares encontrados:', results.length);
+            
+            const processedPlaces = results.slice(0, 5).map((place: any, index: number) => {
+              console.log(`📍 Procesando lugar ${index + 1}:`, place);
+              
+              const placeLocation = {
+                lat: place.geometry.location.lat(),
+                lng: place.geometry.location.lng()
+              };
+              
+              // Calcular distancia real
+              const distance = calculateDistance(
+                currentLocation.lat,
+                currentLocation.lng,
+                placeLocation.lat,
+                placeLocation.lng
+              );
+              
+              const processedPlace = {
+                id: place.place_id,
+                name: place.name,
+                rating: place.rating || 0,
+                types: place.types || [],
+                vicinity: place.vicinity || 'Dirección no disponible',
+                location: placeLocation,
+                distance: distance,
+                distanceText: distance < 1 ? `${(distance * 1000).toFixed(0)}m` : `${distance.toFixed(1)}km`,
+                type: placeType
+              };
+              
+              console.log(`✅ Lugar procesado: ${processedPlace.name} (${processedPlace.distanceText})`);
+              return processedPlace;
+            });
+            
+            // Filtrar por distancia (menos de 5km) y ordenar por distancia
+            const filteredPlaces = processedPlaces
+              .filter((place: any) => place.distance < 5)
+              .sort((a: any, b: any) => a.distance - b.distance)
+              .slice(0, 3);
+              
+            console.log('🎯 Lugares finales:', filteredPlaces.length);
+            console.log('📍 Lugares seleccionados:', filteredPlaces.map(p => `${p.name} (${p.distanceText})`));
+            
+            resolve(filteredPlaces);
+          } else {
+            console.log('❌ No se encontraron lugares reales');
+            console.log('📊 Status:', status);
+            console.log('📊 Resultados:', results);
+            resolve([]);
+          }
+        });
+      });
+      
+    } catch (error) {
+      console.error('❌ Error crítico buscando lugares reales:', error);
+      console.log('🔄 No se pueden obtener lugares reales, retornando array vacío');
+      return [];
+    }
+  };
+
+  // Función para agregar pins al mapa
+  const addPinsToMap = (places: any[]) => {
+    if (!map) return;
+    
+    // Limpiar pins anteriores
+    mapPins.forEach(pin => pin.setMap(null));
+    const newPins: any[] = [];
+    
+    places.forEach((place, index) => {
+      const icon = getPlaceIcon(place.type);
+      
+      const marker = new window.google.maps.Marker({
+        position: place.location,
+        map: map,
+        title: place.name,
+        icon: {
+          url: icon,
+          scaledSize: new window.google.maps.Size(32, 32),
+          anchor: new window.google.maps.Point(16, 32)
+        },
+        animation: window.google.maps.Animation.DROP
+      });
+      
+      // Agregar info window
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div style="padding: 10px;">
+            <h3 style="margin: 0 0 5px 0; color: #1976d2;">${place.name}</h3>
+            <p style="margin: 0; color: #666;">${place.vicinity}</p>
+            <p style="margin: 5px 0 0 0; color: #666;">⭐ ${place.rating}/5</p>
+          </div>
+        `
+      });
+      
+      marker.addListener('click', () => {
+        infoWindow.open(map, marker);
+        setSelectedPlace(place);
+      });
+      
+      newPins.push(marker);
+    });
+    
+    setMapPins(newPins);
+  };
+
+  // Función para obtener icono según el tipo de lugar
+  const getPlaceIcon = (placeType: string) => {
+    switch (placeType) {
+      case 'restaurant':
+        return 'https://maps.google.com/mapfiles/ms/icons/restaurant.png';
+      case 'lodging':
+        return 'https://maps.google.com/mapfiles/ms/icons/lodging.png';
+      case 'tourist_attraction':
+        return 'https://maps.google.com/mapfiles/ms/icons/tourist.png';
+      case 'gas_station':
+        return 'https://maps.google.com/mapfiles/ms/icons/gas.png';
+      default:
+        return 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png';
+    }
+  };
+
+  // Función para agregar pins de tips al mapa
+  const addTipPinsToMap = (tips: any[]) => {
+    console.log('🗺️ addTipPinsToMap llamada con:', tips);
+    console.log('🗺️ Mapa disponible:', !!map);
+    
+    if (!map) {
+      console.error('❌ Mapa no disponible para agregar pins de tips');
+      return;
+    }
+    
+    // Limpiar pins de tips anteriores
+    tipPins.forEach(pin => pin.setMap(null));
+    const newTipPins: any[] = [];
+    
+    console.log('🗺️ Agregando pins de tips al mapa...');
+    tips.forEach((tip, index) => {
+      const marker = new window.google.maps.Marker({
+        position: tip.location,
+        map: map,
+        title: `${tip.tipIcon} ${tip.name}`,
+        icon: {
+          url: 'https://maps.google.com/mapfiles/ms/icons/info.png', // Icono de exclamación
+          scaledSize: new window.google.maps.Size(32, 32),
+          anchor: new window.google.maps.Point(16, 32)
+        },
+        animation: window.google.maps.Animation.DROP
+      });
+      
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div style="padding: 10px; max-width: 250px;">
+            <h3 style="margin: 0 0 8px 0; color: #1976d2; font-size: 16px;">
+              ${tip.tipIcon} ${tip.name}
+            </h3>
+            <p style="margin: 4px 0; color: #666; font-size: 14px;">
+              📍 ${tip.vicinity}
+            </p>
+            <p style="margin: 4px 0; color: #666; font-size: 14px;">
+              ⭐ ${tip.rating}/5 • ${tip.distanceText}
+            </p>
+            <p style="margin: 4px 0; color: #666; font-size: 12px;">
+              🏷️ ${tip.types.join(', ')}
+            </p>
+            <button onclick="startTripToTip('${tip.id}')" 
+                    style="background: #1976d2; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; margin-top: 8px;">
+              🚗 Iniciar viaje
+            </button>
+          </div>
+        `
+      });
+      
+      marker.addListener('click', () => {
+        infoWindow.open(map, marker);
+      });
+      
+      newTipPins.push(marker);
+      console.log(`🗺️ Pin ${index + 1} agregado:`, tip.name);
+    });
+    
+    console.log('🗺️ Total pins de tips creados:', newTipPins.length);
+    setTipPins(newTipPins);
+    console.log('🗺️ Estado de tipPins actualizado');
+  };
+
+  // Función para iniciar viaje a un tip
+  const startTripToTip = (tipId: string) => {
+    console.log('🚗 Iniciando viaje a tip:', tipId);
+    const tip = tips.find(t => t.id === tipId);
+    if (!tip || !currentLocation) {
+      console.error('❌ Tip no encontrado o ubicación no disponible');
+      return;
+    }
+    
+    console.log('📍 Tip encontrado:', tip);
+    
+    // Guardar destino original si no estamos ya navegando a un tip
+    if (!isNavigatingToTip && trip) {
+      setOriginalDestination({
+        name: trip.destination,
+        location: {
+          lat: trip.destinationLatitude,
+          lng: trip.destinationLongitude
+        }
+      });
+    }
+    
+    // Configurar navegación temporal al tip
+    setIsNavigatingToTip(true);
+    setCurrentTipDestination(tip);
+    
+    // Iniciar navegación al tip
+    if (directionsService && directionsRenderer) {
+      const request = {
+        origin: currentLocation,
+        destination: tip.location,
+        travelMode: window.google.maps.TravelMode.DRIVING,
+        provideRouteAlternatives: false,
+        avoidHighways: false,
+        avoidTolls: false
+      };
+      
+      console.log('🗺️ Calculando ruta al tip:', request);
+      
+      directionsService.route(request, (result: any, status: any) => {
+        if (status === window.google.maps.DirectionsStatus.OK) {
+          directionsRenderer.setDirections(result);
+          
+          // Zoom automático al tip
+          if (currentLocation) {
+            applyZoomToLocation(currentLocation, 'navegación a tip');
+          }
+          
+          toast.success(`🚗 Navegando a ${tip.name}. Usa "Continuar viaje" para volver al destino principal.`);
+          console.log('✅ Ruta al tip calculada exitosamente');
+        } else {
+          console.error('❌ Error calculando ruta al tip:', status);
+          toast.error('Error calculando ruta al tip');
+          setIsNavigatingToTip(false);
+          setCurrentTipDestination(null);
+        }
+      });
+    } else {
+      console.error('❌ DirectionsService no disponible');
+      toast.error('Servicio de direcciones no disponible');
+      setIsNavigatingToTip(false);
+      setCurrentTipDestination(null);
+    }
+  };
+
+  // Función para continuar el viaje principal
+  const continueMainTrip = () => {
+    if (!originalDestination || !currentLocation || !directionsService || !directionsRenderer) {
+      console.error('❌ No se puede continuar el viaje principal');
+      toast.error('No se puede continuar el viaje principal');
+      return;
+    }
+    
+    console.log('🔄 Continuando viaje principal a:', originalDestination);
+    
+    const request = {
+      origin: currentLocation,
+      destination: originalDestination.location,
+      travelMode: window.google.maps.TravelMode.DRIVING,
+      provideRouteAlternatives: false,
+      avoidHighways: false,
+      avoidTolls: false
+    };
+    
+    directionsService.route(request, (result: any, status: any) => {
+      if (status === window.google.maps.DirectionsStatus.OK) {
+        directionsRenderer.setDirections(result);
+        
+        // Zoom automático al continuar viaje principal
+        if (currentLocation) {
+          applyZoomToLocation(currentLocation, 'continuar viaje principal');
+        }
+        
+        setIsNavigatingToTip(false);
+        setCurrentTipDestination(null);
+        toast.success(`🔄 Continuando viaje principal a ${originalDestination.name}`);
+        console.log('✅ Viaje principal restaurado');
+      } else {
+        console.error('❌ Error calculando ruta principal:', status);
+        toast.error('Error calculando ruta principal');
+      }
+    });
+  };
+
+  // Hacer las funciones disponibles globalmente para los botones del mapa
+  useEffect(() => {
+    (window as any).startTripToTip = startTripToTip;
+    (window as any).continueMainTrip = continueMainTrip;
+    return () => {
+      delete (window as any).startTripToTip;
+      delete (window as any).continueMainTrip;
+    };
+  }, [startTripToTip, continueMainTrip]);
+
+  // Función para limpiar tips
+  const clearTips = () => {
+    setTips([]);
+    tipPins.forEach(pin => pin.setMap(null));
+    setTipPins([]);
+    setShowTipsList(false);
+  };
+
+  // Función para eliminar un tip específico
+  const removeTip = (tipId: string) => {
+    setTips(prev => prev.filter(tip => tip.id !== tipId));
+    setTipPins(prev => {
+      const pinToRemove = prev.find(pin => pin.title.includes(tipId));
+      if (pinToRemove) {
+        pinToRemove.setMap(null);
+        return prev.filter(pin => pin !== pinToRemove);
+      }
+      return prev;
+    });
+  };
+
   const getIcon = (image: string) => {
     switch (image) {
       case 'sun':
@@ -526,6 +1829,31 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
         return <DirectionsWalk sx={{ fontSize: 24 }} />;
       default:
         return <DirectionsCar sx={{ fontSize: 24 }} />;
+    }
+  };
+
+  // Función para obtener icono de dirección basado en la instrucción
+  const getDirectionIcon = (instruction: string) => {
+    const lowerInstruction = instruction.toLowerCase();
+    
+    if (lowerInstruction.includes('derecha') || lowerInstruction.includes('right')) {
+      return <TurnRight sx={{ fontSize: 20, color: 'primary.main' }} />;
+    } else if (lowerInstruction.includes('izquierda') || lowerInstruction.includes('left')) {
+      return <TurnLeft sx={{ fontSize: 20, color: 'primary.main' }} />;
+    } else if (lowerInstruction.includes('recto') || lowerInstruction.includes('straight')) {
+      return <Straight sx={{ fontSize: 20, color: 'primary.main' }} />;
+    } else if (lowerInstruction.includes('norte') || lowerInstruction.includes('north')) {
+      return <KeyboardArrowUp sx={{ fontSize: 20, color: 'primary.main' }} />;
+    } else if (lowerInstruction.includes('sur') || lowerInstruction.includes('south')) {
+      return <KeyboardArrowDown sx={{ fontSize: 20, color: 'primary.main' }} />;
+    } else if (lowerInstruction.includes('este') || lowerInstruction.includes('east')) {
+      return <KeyboardArrowRight sx={{ fontSize: 20, color: 'primary.main' }} />;
+    } else if (lowerInstruction.includes('oeste') || lowerInstruction.includes('west')) {
+      return <KeyboardArrowLeft sx={{ fontSize: 20, color: 'primary.main' }} />;
+    } else if (lowerInstruction.includes('llegada') || lowerInstruction.includes('arrival')) {
+      return <Flag sx={{ fontSize: 20, color: 'success.main' }} />;
+    } else {
+      return <Navigation sx={{ fontSize: 20, color: 'primary.main' }} />;
     }
   };
 
@@ -774,9 +2102,21 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
                 <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
                   <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      Ruta del Viaje
+                      {isNavigating ? 'Navegación Activa' : 'Ruta del Viaje'}
                     </Typography>
-                    {routeDistance && (
+                    {isNavigating ? (
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="body2" color="success.main" sx={{ fontWeight: 600 }}>
+                          {remainingDistance}
+                        </Typography>
+                        {remainingTime && (
+                          <Typography variant="body2" color="text.secondary">
+                            • {remainingTime}
+                          </Typography>
+                        )}
+                      </Box>
+                    ) : (
+                      routeDistance && (
                       <Box display="flex" alignItems="center" gap={1}>
                         <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
                           {routeDistance}
@@ -787,8 +2127,26 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
                           </Typography>
                         )}
                       </Box>
+                      )
                     )}
                   </Box>
+                  
+                  {isNavigating ? (
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        {trip.origin ? `${trip.origin} → ${trip.destination}` : trip.destination}
+                      </Typography>
+                      {nextInstruction && (
+                        <Box display="flex" alignItems="center" gap={1} mt={1}>
+                          <Navigation sx={{ fontSize: 16, color: 'primary.main' }} />
+                          <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
+                            {nextInstruction}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  ) : (
+                    <Box>
                   <Typography variant="body2" color="text.secondary">
                     {trip.origin ? `${trip.origin} → ${trip.destination}` : trip.destination}
                   </Typography>
@@ -808,6 +2166,54 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
                       <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
                         Te quedan {distanceFromCurrent} para llegar
                       </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  )}
+                  
+                  {/* Botones de navegación para viajes en auto */}
+                  {trip.vehicle === 'auto' && currentLocation && (
+                    <Box display="flex" gap={1} mt={2}>
+                      {!isNavigating ? (
+                        <Button
+                          variant="contained"
+                          startIcon={<PlayArrow />}
+                          onClick={startNavigation}
+                          size="small"
+                          sx={{ 
+                            bgcolor: 'success.main',
+                            '&:hover': { bgcolor: 'success.dark' }
+                          }}
+                        >
+                          Iniciar Viaje
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            variant="contained"
+                            startIcon={<Stop />}
+                            onClick={stopNavigation}
+                            size="small"
+                            color="error"
+                          >
+                            Detener Navegación
+                          </Button>
+                          {isNavigatingToTip && (
+                            <Button
+                              variant="contained"
+                              startIcon={<Navigation />}
+                              onClick={continueMainTrip}
+                              size="small"
+                              sx={{ 
+                                bgcolor: 'green',
+                                '&:hover': { bgcolor: 'darkgreen' }
+                              }}
+                            >
+                              Continuar viaje
+                            </Button>
+                          )}
+                        </>
+                      )}
                     </Box>
                   )}
                 </Box>
@@ -815,11 +2221,306 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
                   ref={mapRef}
                   sx={{
                     width: '100%',
-                    height: 400,
+                    height: isNavigating ? 300 : 400,
                     borderRadius: 0,
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    transition: 'height 0.3s ease-in-out'
                   }}
                 />
+                
+
+                {/* Lista de Tips Mejorada */}
+                {tips.length > 0 && (
+                  <Box sx={{ mt: 3 }}>
+                    <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+                      <Box display="flex" alignItems="center" gap={2}>
+                        <Typography variant="h5" sx={{ 
+                          fontWeight: 700, 
+                          color: 'primary.main',
+                          background: 'linear-gradient(45deg, #1976d2, #42a5f5)',
+                          backgroundClip: 'text',
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent'
+                        }}>
+                          💡 Tips Recomendados
+                        </Typography>
+                        <Chip
+                          label={`${tips.length} lugares`}
+                          size="small"
+                          color="primary"
+                          sx={{ fontWeight: 600 }}
+                        />
+                      </Box>
+                      <Box display="flex" gap={1}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => setShowTipsList(!showTipsList)}
+                          startIcon={showTipsList ? <ExpandLess /> : <ExpandMore />}
+                          sx={{ 
+                            borderRadius: 2,
+                            textTransform: 'none',
+                            fontWeight: 600
+                          }}
+                        >
+                          {showTipsList ? 'Ocultar' : 'Ver todos'}
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          color="error"
+                          onClick={clearTips}
+                          startIcon={<Clear />}
+                          sx={{ 
+                            borderRadius: 2,
+                            textTransform: 'none',
+                            fontWeight: 600
+                          }}
+                        >
+                          Limpiar
+                        </Button>
+                      </Box>
+                    </Box>
+                    
+                    {showTipsList && (
+                      <Box sx={{ 
+                        position: 'relative',
+                        '&::before': {
+                          content: '""',
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: 'linear-gradient(90deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 10%, rgba(255,255,255,0) 90%, rgba(255,255,255,1) 100%)',
+                          pointerEvents: 'none',
+                          zIndex: 1
+                        }
+                      }}>
+                        <Box sx={{ 
+                          display: 'flex',
+                          gap: 2,
+                          overflowX: 'auto',
+                          pb: 2,
+                          scrollbarWidth: 'thin',
+                          '&::-webkit-scrollbar': {
+                            height: 8
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: '#f1f1f1',
+                            borderRadius: 4
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: '#1976d2',
+                            borderRadius: 4,
+                            '&:hover': {
+                              background: '#1565c0'
+                            }
+                          }
+                        }}>
+                          {tips.map((tip, index) => (
+                            <Card 
+                              key={tip.id}
+                              id={`tip-card-${tip.id}`}
+                              sx={{ 
+                                minWidth: 280,
+                                maxWidth: 280,
+                                border: '2px solid transparent',
+                                borderRadius: 3,
+                                background: 'linear-gradient(145deg, #ffffff, #f8f9fa)',
+                                boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                cursor: 'pointer',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                '&:hover': {
+                                  transform: 'translateY(-8px) scale(1.02)',
+                                  boxShadow: '0 12px 40px rgba(25, 118, 210, 0.3)',
+                                  border: '2px solid #1976d2',
+                                  '& .tip-icon': {
+                                    transform: 'scale(1.2) rotate(5deg)'
+                                  },
+                                  '& .tip-name': {
+                                    color: '#1976d2'
+                                  },
+                                  '& .shine-effect': {
+                                    left: '100%'
+                                  }
+                                },
+                                '&:active': {
+                                  transform: 'translateY(-4px) scale(0.98)',
+                                  transition: 'all 0.1s ease'
+                                }
+                              }}
+                              onClick={() => {
+                                // Animación de selección
+                                const card = document.getElementById(`tip-card-${tip.id}`);
+                                if (card) {
+                                  card.style.transform = 'scale(0.95)';
+                                  setTimeout(() => {
+                                    card.style.transform = '';
+                                  }, 150);
+                                }
+                              }}
+                            >
+                              <CardContent sx={{ p: 3, position: 'relative' }}>
+                                {/* Header con icono y nombre */}
+                                <Box display="flex" alignItems="center" gap={2} mb={2}>
+                                  <Box 
+                                    className="tip-icon"
+                                    sx={{ 
+                                      fontSize: 32,
+                                      transition: 'all 0.3s ease',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      width: 48,
+                                      height: 48,
+                                      borderRadius: '50%',
+                                      background: 'linear-gradient(45deg, #1976d2, #42a5f5)',
+                                      color: 'white',
+                                      boxShadow: '0 4px 15px rgba(25, 118, 210, 0.3)'
+                                    }}
+                                  >
+                                    {tip.tipIcon}
+                                  </Box>
+                                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography 
+                                      className="tip-name"
+                                      variant="h6" 
+                                      sx={{ 
+                                        fontWeight: 700,
+                                        color: '#333',
+                                        transition: 'color 0.3s ease',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      {tip.name}
+                                    </Typography>
+                                    <Chip
+                                      label={tip.distanceText}
+                                      size="small"
+                                      color="primary"
+                                      variant="filled"
+                                      sx={{ 
+                                        fontWeight: 600,
+                                        fontSize: '0.75rem',
+                                        height: 20
+                                      }}
+                                    />
+                                  </Box>
+                                </Box>
+                                
+                                {/* Información del lugar */}
+                                <Typography 
+                                  variant="body2" 
+                                  color="text.secondary" 
+                                  sx={{ 
+                                    mb: 2,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  📍 {tip.vicinity}
+                                </Typography>
+                                
+                                {/* Rating y tipos */}
+                                <Box display="flex" alignItems="center" gap={2} mb={3}>
+                                  <Box display="flex" alignItems="center" gap={0.5}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#ff9800' }}>
+                                      ⭐
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                      {tip.rating.toFixed(1)}/5
+                                    </Typography>
+                                  </Box>
+                                  <Typography 
+                                    variant="body2" 
+                                    color="text.secondary"
+                                    sx={{ 
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      flex: 1
+                                    }}
+                                  >
+                                    {tip.types.slice(0, 2).join(', ')}
+                                  </Typography>
+                                </Box>
+                                
+                                {/* Botones de acción */}
+                                <Box display="flex" gap={1}>
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    startIcon={<Directions />}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      startTripToTip(tip.id);
+                                    }}
+                                    sx={{ 
+                                      flex: 1,
+                                      borderRadius: 2,
+                                      textTransform: 'none',
+                                      fontWeight: 600,
+                                      background: 'linear-gradient(45deg, #1976d2, #42a5f5)',
+                                      '&:hover': {
+                                        background: 'linear-gradient(45deg, #1565c0, #1976d2)',
+                                        transform: 'translateY(-1px)',
+                                        boxShadow: '0 4px 15px rgba(25, 118, 210, 0.4)'
+                                      }
+                                    }}
+                                  >
+                                    🚗 Ir
+                                  </Button>
+                                  <Button
+                                    variant="outlined"
+                                    size="small"
+                                    color="error"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeTip(tip.id);
+                                    }}
+                                    sx={{ 
+                                      borderRadius: 2,
+                                      textTransform: 'none',
+                                      fontWeight: 600,
+                                      minWidth: 'auto',
+                                      px: 1
+                                    }}
+                                  >
+                                    <Delete fontSize="small" />
+                                  </Button>
+                                </Box>
+                                
+                                {/* Efecto de brillo en hover */}
+                                <Box
+                                  sx={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: '-100%',
+                                    width: '100%',
+                                    height: '100%',
+                                    background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
+                                    transition: 'left 0.5s ease',
+                                    pointerEvents: 'none'
+                                  }}
+                                  className="shine-effect"
+                                />
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+                  </Box>
+                )}
                 {!isGoogleMapsLoaded && (
                   <Box sx={{ 
                     height: 400, 
@@ -838,6 +2539,521 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
               </CardContent>
             </Card>
           </Box>
+
+          {/* Recomendaciones de IA */}
+          {showRecommendations && aiRecommendations.length > 0 && (
+            <Box sx={{ width: '100%', mb: 4 }}>
+              <Card sx={{ 
+                background: 'linear-gradient(135deg, #9c27b0 0%, #e91e63 100%)',
+                color: 'white',
+                boxShadow: '0 8px 32px rgba(156, 39, 176, 0.3)'
+              }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box display="flex" alignItems="center" gap={2} mb={3}>
+                    <Box sx={{ 
+                      bgcolor: 'rgba(255, 255, 255, 0.2)', 
+                      borderRadius: '50%', 
+                      p: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <Typography sx={{ fontSize: 24 }}>🤖</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                        Recomendaciones de IA
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                        Basadas en tu ubicación y progreso del viaje
+                      </Typography>
+                    </Box>
+                    <Box sx={{ ml: 'auto' }}>
+                      <IconButton 
+                        onClick={() => setShowRecommendations(false)}
+                        sx={{ color: 'white' }}
+                      >
+                        <ArrowBack />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                  
+                  <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+                    {aiRecommendations.map((recommendation, index) => (
+                      <Box key={index} sx={{ 
+                        bgcolor: 'rgba(255, 255, 255, 0.1)', 
+                        borderRadius: 2, 
+                        p: 2, 
+                        mb: 2,
+                        border: recommendation.priority === 'high' ? '2px solid rgba(255, 255, 255, 0.5)' : 'none'
+                      }}>
+                        <Box display="flex" alignItems="center" gap={2} mb={1}>
+                          <Typography variant="h6" sx={{ fontWeight: 600, color: 'white' }}>
+                            {recommendation.title}
+                          </Typography>
+                          <Chip
+                            label={recommendation.priority === 'high' ? 'ALTA' : recommendation.priority === 'medium' ? 'MEDIA' : 'BAJA'}
+                            size="small"
+                            sx={{ 
+                              bgcolor: recommendation.priority === 'high' ? 'error.main' : 
+                                     recommendation.priority === 'medium' ? 'warning.main' : 'success.main',
+                              color: 'white',
+                              fontWeight: 600,
+                              fontSize: '0.7rem'
+                            }}
+                          />
+                        </Box>
+                        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.9)', mb: 1 }}>
+                          {recommendation.description}
+                        </Typography>
+                        <Box display="flex" alignItems="center" gap={2}>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <AccessTime sx={{ fontSize: 16 }} />
+                            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                              {recommendation.estimated_time} min
+                            </Typography>
+                          </Box>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Place sx={{ fontSize: 16 }} />
+                            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                              {recommendation.type === 'restaurant' ? 'Restaurante' :
+                               recommendation.type === 'attraction' ? 'Atracción' :
+                               recommendation.type === 'gas_station' ? 'Gasolinera' :
+                               recommendation.type === 'lodging' ? 'Alojamiento' : 'Actividad'}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                  
+                  {isLoadingRecommendations && (
+                    <Box display="flex" alignItems="center" justifyContent="center" gap={2} py={2}>
+                      <CircularProgress size={20} sx={{ color: 'white' }} />
+                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                        Obteniendo nuevas recomendaciones...
+                      </Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            </Box>
+          )}
+
+          {/* Instrucciones de Navegación (solo cuando está navegando) */}
+          {isNavigating && navigationSteps.length > 0 && (
+            <Box sx={{ display: 'flex', gap: 3, width: '100%', mb: 4 }}>
+              {/* Navegación */}
+              <Box sx={{ flex: '1 1 60%' }}>
+                <Card sx={{ 
+                  background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+                  color: 'white',
+                  boxShadow: '0 8px 32px rgba(25, 118, 210, 0.3)'
+                }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Box display="flex" alignItems="center" gap={2} mb={3}>
+                      <Navigation sx={{ color: 'white', fontSize: 28 }} />
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                        Navegación Activa
+                      </Typography>
+                    </Box>
+                  
+                  {/* Instrucción actual destacada */}
+                  {nextInstruction && (
+                    <Box sx={{ 
+                      bgcolor: 'rgba(255, 255, 255, 0.15)', 
+                      borderRadius: 2, 
+                      p: 3, 
+                      mb: 3,
+                      backdropFilter: 'blur(10px)',
+                      border: '2px solid rgba(255, 255, 255, 0.3)'
+                    }}>
+                      <Box display="flex" alignItems="center" gap={2} mb={2}>
+                        {getDirectionIcon(nextInstruction)}
+                        <Typography variant="h5" sx={{ fontWeight: 700, color: 'white' }}>
+                          {nextInstruction}
+                        </Typography>
+                      </Box>
+                      
+                      <Box display="flex" alignItems="center" gap={4} mb={2}>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Speed sx={{ fontSize: 18 }} />
+                          <Typography variant="h6" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 600 }}>
+                            {remainingDistance}
+                          </Typography>
+                        </Box>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <AccessTime sx={{ fontSize: 18 }} />
+                          <Typography variant="h6" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 600 }}>
+                            {remainingTime}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      
+                      <Box display="flex" alignItems="center" gap={2}>
+                        <Chip
+                          label="ACTUAL"
+                          size="medium"
+                          sx={{ 
+                            bgcolor: 'white',
+                            color: 'primary.main',
+                            fontWeight: 700,
+                            fontSize: '0.8rem'
+                          }}
+                        />
+                        {isNavigatingToTip && (
+                          <Chip
+                            label={`📍 ${currentTipDestination?.name || 'Tip'}`}
+                            size="medium"
+                            sx={{ 
+                              bgcolor: 'orange',
+                              color: 'white',
+                              fontWeight: 700,
+                              fontSize: '0.8rem'
+                            }}
+                          />
+                        )}
+                        <Box sx={{ ml: 'auto' }}>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<Typography sx={{ fontSize: 16 }}>🤖</Typography>}
+                            onClick={() => setShowRecommendations(!showRecommendations)}
+                            sx={{ 
+                              bgcolor: 'rgba(255, 255, 255, 0.2)',
+                              color: 'white',
+                              '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.3)' }
+                            }}
+                          >
+                            {showRecommendations ? 'Ocultar IA' : 'Ver IA'}
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* Próximas 2 instrucciones */}
+                  {navigationSteps.length > 0 && (
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="h6" sx={{ color: 'white', mb: 2, fontWeight: 600 }}>
+                        Próximas instrucciones:
+                      </Typography>
+                      {navigationSteps.slice(currentStep + 1, currentStep + 3).map((step, index) => (
+                        <Box key={currentStep + 1 + index} sx={{ 
+                          bgcolor: 'rgba(255, 255, 255, 0.1)', 
+                          borderRadius: 2, 
+                          p: 2, 
+                          mb: 1,
+                          border: '1px solid rgba(255, 255, 255, 0.2)'
+                        }}>
+                          <Box display="flex" alignItems="center" gap={2}>
+                            {getDirectionIcon(step.instructions)}
+                            <Typography variant="body1" sx={{ color: 'white', fontWeight: 500 }}>
+                              {step.instructions.replace(/<[^>]*>/g, '')}
+                            </Typography>
+                          </Box>
+                          <Box display="flex" alignItems="center" gap={2} mt={1}>
+                            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                              {step.distance.text}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                              • {step.duration.text}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+                  </CardContent>
+                </Card>
+              </Box>
+
+              {/* Chatbox con Gemini */}
+              <Box sx={{ flex: '1 1 40%' }}>
+                <Card sx={{ 
+                  background: 'linear-gradient(135deg, #9c27b0 0%, #e91e63 100%)',
+                  color: 'white',
+                  boxShadow: '0 8px 32px rgba(156, 39, 176, 0.3)',
+                  height: 400
+                }}>
+                  <CardContent sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    {/* Header del chat */}
+                    <Box sx={{ 
+                      p: 2, 
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2
+                    }}>
+                      <Box sx={{ 
+                        bgcolor: 'rgba(255, 255, 255, 0.2)', 
+                        borderRadius: '50%', 
+                        p: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Typography sx={{ fontSize: 20 }}>🤖</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                          Gemini Assistant
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                          Tu asistente de viajes
+                        </Typography>
+                      </Box>
+                    </Box>
+
+                    {/* Mensajes del chat */}
+                    <Box sx={{ 
+                      flex: 1, 
+                      p: 2, 
+                      overflow: 'auto',
+                      maxHeight: 280
+                    }}>
+                      {chatMessages.map((msg) => (
+                        <Box key={msg.id} sx={{ mb: 2 }}>
+                          <Box sx={{
+                            display: 'flex',
+                            justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start',
+                            mb: 1
+                          }}>
+                            <Box sx={{
+                              maxWidth: '80%',
+                              p: 1.5,
+                              borderRadius: 2,
+                              bgcolor: msg.type === 'user' 
+                                ? 'rgba(255, 255, 255, 0.2)' 
+                                : 'rgba(255, 255, 255, 0.1)',
+                              border: msg.type === 'user' 
+                                ? '1px solid rgba(255, 255, 255, 0.3)' 
+                                : 'none'
+                            }}>
+                              <Typography variant="body2" sx={{ color: 'white' }}>
+                                {msg.message}
+                              </Typography>
+                              <Typography variant="caption" sx={{ 
+                                color: 'rgba(255, 255, 255, 0.6)', 
+                                display: 'block',
+                                mt: 0.5,
+                                fontSize: '0.7rem'
+                              }}>
+                                {msg.timestamp.toLocaleTimeString()}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Box>
+                      ))}
+                      
+                      {isTyping && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                          <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                            Gemini está escribiendo...
+                          </Typography>
+                          <CircularProgress size={16} sx={{ color: 'white' }} />
+                        </Box>
+                      )}
+                    </Box>
+
+                    {/* Input del chat */}
+                    <Box sx={{ 
+                      p: 2, 
+                      borderTop: '1px solid rgba(255, 255, 255, 0.2)',
+                      display: 'flex',
+                      gap: 1
+                    }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Pregúntame algo sobre tu viaje..."
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            color: 'white',
+                            '& fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.3)',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.5)',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: 'white',
+                            },
+                          },
+                          '& .MuiInputBase-input': {
+                            color: 'white',
+                            '&::placeholder': {
+                              color: 'rgba(255, 255, 255, 0.7)',
+                            },
+                          },
+                        }}
+                      />
+                      <Button
+                        variant="contained"
+                        onClick={sendChatMessage}
+                        disabled={!chatInput.trim()}
+                        sx={{
+                          bgcolor: 'rgba(255, 255, 255, 0.2)',
+                          color: 'white',
+                          minWidth: 'auto',
+                          px: 2,
+                          '&:hover': {
+                            bgcolor: 'rgba(255, 255, 255, 0.3)',
+                          },
+                          '&:disabled': {
+                            bgcolor: 'rgba(255, 255, 255, 0.1)',
+                            color: 'rgba(255, 255, 255, 0.5)',
+                          }
+                        }}
+                      >
+                        <ArrowBack sx={{ transform: 'rotate(90deg)' }} />
+                      </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Box>
+            </Box>
+          )}
+
+          {/* Lista de Lugares Recomendados */}
+          {recommendedPlaces.length > 0 && (
+            <Box sx={{ width: '100%', mb: 4 }}>
+              <Card sx={{ 
+                background: 'linear-gradient(135deg, #4caf50 0%, #8bc34a 100%)',
+                color: 'white',
+                boxShadow: '0 8px 32px rgba(76, 175, 80, 0.3)'
+              }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box display="flex" alignItems="center" gap={2} mb={3}>
+                    <Box sx={{ 
+                      bgcolor: 'rgba(255, 255, 255, 0.2)', 
+                      borderRadius: '50%', 
+                      p: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <Place sx={{ fontSize: 24 }} />
+                    </Box>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                        Lugares Recomendados
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                        Basados en tu consulta a Gemini
+                      </Typography>
+                    </Box>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                    {recommendedPlaces.map((place, index) => (
+                      <Card key={place.id} sx={{ 
+                        flex: '1 1 300px',
+                        minWidth: 300,
+                        bgcolor: 'rgba(255, 255, 255, 0.1)',
+                        border: selectedPlace?.id === place.id ? '2px solid rgba(255, 255, 255, 0.5)' : '1px solid rgba(255, 255, 255, 0.2)',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          bgcolor: 'rgba(255, 255, 255, 0.2)',
+                          transform: 'translateY(-2px)'
+                        }
+                      }}
+                      onClick={() => setSelectedPlace(place)}
+                      >
+                        <CardContent sx={{ p: 2 }}>
+                          <Box display="flex" alignItems="center" gap={2} mb={1}>
+                            <Box sx={{ 
+                              bgcolor: 'rgba(255, 255, 255, 0.2)', 
+                              borderRadius: 1, 
+                              p: 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              {place.type === 'restaurant' && <Typography sx={{ fontSize: 20 }}>🍽️</Typography>}
+                              {place.type === 'lodging' && <Typography sx={{ fontSize: 20 }}>🏨</Typography>}
+                              {place.type === 'tourist_attraction' && <Typography sx={{ fontSize: 20 }}>🎯</Typography>}
+                              {place.type === 'gas_station' && <Typography sx={{ fontSize: 20 }}>⛽</Typography>}
+                            </Box>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="h6" sx={{ fontWeight: 600, color: 'white', mb: 0.5 }}>
+                                {place.name}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                                {place.vicinity}
+                              </Typography>
+                            </Box>
+                          </Box>
+                          
+                          <Box display="flex" alignItems="center" gap={2} mt={1}>
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <Typography sx={{ fontSize: 16 }}>⭐</Typography>
+                              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
+                                {place.rating}/5
+                              </Typography>
+                            </Box>
+                            <Chip
+                              label={place.type === 'restaurant' ? 'Restaurante' :
+                                     place.type === 'lodging' ? 'Alojamiento' :
+                                     place.type === 'tourist_attraction' ? 'Atracción' : 'Gasolinera'}
+                              size="small"
+                              sx={{ 
+                                bgcolor: 'rgba(255, 255, 255, 0.2)',
+                                color: 'white',
+                                fontWeight: 600,
+                                fontSize: '0.7rem'
+                              }}
+                            />
+                          </Box>
+                          
+                          {selectedPlace?.id === place.id && (
+                            <Box sx={{ 
+                              mt: 2, 
+                              p: 1, 
+                              bgcolor: 'rgba(255, 255, 255, 0.1)', 
+                              borderRadius: 1,
+                              border: '1px solid rgba(255, 255, 255, 0.3)'
+                            }}>
+                              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
+                                📍 Haz clic en el pin del mapa para más información
+                              </Typography>
+                            </Box>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Box>
+                  
+                  <Box sx={{ mt: 2, textAlign: 'center' }}>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => {
+                        setRecommendedPlaces([]);
+                        mapPins.forEach(pin => pin.setMap(null));
+                        setMapPins([]);
+                        setSelectedPlace(null);
+                      }}
+                      sx={{
+                        color: 'white',
+                        borderColor: 'rgba(255, 255, 255, 0.5)',
+                        '&:hover': {
+                          borderColor: 'white',
+                          bgcolor: 'rgba(255, 255, 255, 0.1)'
+                        }
+                      }}
+                    >
+                      Limpiar Recomendaciones
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
+          )}
 
           {/* Lista de Participantes */}
           <Box sx={{ width: '100%' }}>
