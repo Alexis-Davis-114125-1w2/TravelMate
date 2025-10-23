@@ -2,7 +2,7 @@
 
 import { useAuth } from '../../../../hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useRef, use } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { api, API_BASE_URL, getAuthHeaders } from '../../../../lib/api';
 import { toast } from 'react-toastify';
 
@@ -126,8 +126,14 @@ interface Participant {
 export default function TripDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const resolvedParams = use(params);
-  const tripId = resolvedParams.id;
+  const [tripId, setTripId] = useState<string>('');
+  
+  // Resolver params
+  useEffect(() => {
+    params.then(resolvedParams => {
+      setTripId(resolvedParams.id);
+    });
+  }, [params]);
   
   // Estados principales
   const [trip, setTrip] = useState<TripDetails | null>(null);
@@ -336,6 +342,29 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
       fetchTripData();
     }
   }, [user, isAuthenticated, tripId]);
+
+  // Cargar tips desde la base de datos cuando se carga el viaje
+  useEffect(() => {
+    if (trip?.id) {
+      loadTipsFromDatabase().then(tipsFromDB => {
+        if (tipsFromDB && tipsFromDB.length > 0) {
+          console.log('📥 Cargando tips desde base de datos:', tipsFromDB);
+          setTips(tipsFromDB);
+          // Agregar pins al mapa cuando el mapa esté disponible
+          const addPinsWhenMapReady = () => {
+            if (map) {
+              console.log('🗺️ Mapa disponible, agregando pins de tips');
+              addTipPinsToMap(tipsFromDB);
+            } else {
+              console.log('🗺️ Mapa no disponible, reintentando en 500ms');
+              setTimeout(addPinsWhenMapReady, 500);
+            }
+          };
+          addPinsWhenMapReady();
+        }
+      });
+    }
+  }, [trip?.id, map]);
 
   // Inicializar mapa cuando se carguen los datos
   useEffect(() => {
@@ -1267,9 +1296,18 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     
     try {
       // Detectar tipo de consulta y generar respuesta contextual
-      if (lowerInput.includes('comer') || lowerInput.includes('restaurante') || lowerInput.includes('comida')) {
+      // Consultas específicas para el mejor lugar
+      if (lowerInput.includes('mejor lugar para comer') || lowerInput.includes('mejor restaurante')) {
+        return await handleBestRestaurantQuery();
+      } else if (lowerInput.includes('mejor lugar para dormir') || lowerInput.includes('mejor hotel') || lowerInput.includes('mejores departamentos')) {
+        return await handleBestAccommodationQuery();
+      } else if (lowerInput.includes('mejores lugares para visitar') || lowerInput.includes('mejores atracciones')) {
+        return await handleBestAttractionsQuery();
+      }
+      // Consultas generales
+      else if (lowerInput.includes('comer') || lowerInput.includes('restaurante') || lowerInput.includes('comida')) {
         return await handleRestaurantQuery();
-      } else if (lowerInput.includes('dormir') || lowerInput.includes('hotel') || lowerInput.includes('alojamiento')) {
+      } else if (lowerInput.includes('dormir') || lowerInput.includes('hotel') || lowerInput.includes('alojamiento') || lowerInput.includes('departamento') || lowerInput.includes('departamentos')) {
         return await handleAccommodationQuery();
       } else if (lowerInput.includes('atracción') || lowerInput.includes('turístico') || lowerInput.includes('visitar')) {
         return await handleAttractionQuery();
@@ -1292,15 +1330,20 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     
     try {
       // Buscar lugares de forma asíncrona sin bloquear la respuesta
-      findNearbyPlaces('restaurant').then(places => {
+      findNearbyPlaces('restaurant', {
+        maxResults: 5,
+        maxRadius: 20,
+        sortBy: 'rating',
+        minRating: 4.0,
+        includePrice: true
+      }).then(places => {
         console.log('🍽️ Resultados de búsqueda de restaurantes:', places);
         if (places.length > 0) {
-          const topPlaces = places.slice(0, 3);
-          setRecommendedPlaces(topPlaces);
-          addPinsToMap(topPlaces);
+          setRecommendedPlaces(places);
+          addPinsToMap(places);
           
           // Agregar a tips
-          const newTips = topPlaces.map(place => ({
+          const newTips = places.map(place => ({
             ...place,
             tipType: 'restaurant',
             tipIcon: '🍽️'
@@ -1325,8 +1368,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
         toast.error('Error buscando restaurantes. Intenta de nuevo.');
       });
       
-      const locationContext = ` (cerca de ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)})`;
-      return `🍽️ **Buscando restaurantes reales cercanos${locationContext}...**\n\nEstoy consultando Google Maps para encontrar restaurantes reales cerca de tu ubicación actual (menos de 5km). Los resultados aparecerán en el mapa y en la lista de abajo.\n\n💡 **Tip:** Puedes preguntarme por otros tipos de lugares como hoteles, atracciones o gasolineras.`;
+      return `🍽️ **Buscando restaurantes cerca de ti...**\n\nEstoy buscando los mejores restaurantes en tu zona. Te mostraré opciones con calificaciones y precios para que puedas elegir dónde comer.\n\n💡 **Tip:** Puedes preguntarme por otros tipos de lugares como hoteles, atracciones o gasolineras.`;
     } catch (error) {
       return "Hubo un problema buscando restaurantes. Intenta de nuevo en un momento.";
     }
@@ -1338,14 +1380,19 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     
     try {
       // Buscar lugares de forma asíncrona sin bloquear la respuesta
-      findNearbyPlaces('lodging').then(places => {
+      findNearbyPlaces('lodging', {
+        maxResults: 5,
+        maxRadius: 20,
+        sortBy: 'rating',
+        minRating: 3.0,
+        includePrice: true
+      }).then(places => {
         if (places.length > 0) {
-          const topPlaces = places.slice(0, 3);
-          setRecommendedPlaces(topPlaces);
-          addPinsToMap(topPlaces);
+          setRecommendedPlaces(places);
+          addPinsToMap(places);
           
           // Agregar a tips
-          const newTips = topPlaces.map(place => ({
+          const newTips = places.map(place => ({
             ...place,
             tipType: 'lodging',
             tipIcon: '🏨'
@@ -1357,8 +1404,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
         console.error('Error buscando alojamiento:', error);
       });
       
-      const locationContext = ` (cerca de ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)})`;
-      return `🏨 **Buscando alojamiento real${locationContext}...**\n\nEstoy consultando Google Maps para encontrar hoteles y opciones de alojamiento reales cerca de tu ubicación actual. Los resultados aparecerán en el mapa y en la lista de abajo.\n\n💡 **Tip:** Perfecto para viajes largos o si necesitas descansar.`;
+      return `🏨 **Buscando departamentos y alojamientos cerca de ti...**\n\nEstoy buscando los mejores departamentos y hoteles en tu zona. Te mostraré opciones con precios y calificaciones para que puedas elegir el que más te convenga.\n\n💡 **Tip:** Perfecto para viajes largos o si necesitas descansar.`;
     } catch (error) {
       return "Hubo un problema buscando alojamiento. Intenta de nuevo en un momento.";
     }
@@ -1389,8 +1435,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
         console.error('Error buscando atracciones:', error);
       });
       
-      const locationContext = ` (cerca de ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)})`;
-      return `🎯 **Buscando atracciones reales${locationContext}...**\n\nEstoy consultando Google Maps para encontrar atracciones turísticas reales cerca de tu ubicación actual. Los resultados aparecerán en el mapa y en la lista de abajo.\n\n💡 **Tip:** Perfecto para turismo y descubrir nuevos lugares.`;
+      return `🎯 **Buscando atracciones cerca de ti...**\n\nEstoy buscando las mejores atracciones turísticas en tu zona. Te mostraré lugares interesantes para visitar durante tu viaje.\n\n💡 **Tip:** Perfecto para turismo y descubrir nuevos lugares.`;
     } catch (error) {
       return "Hubo un problema buscando atracciones. Intenta de nuevo en un momento.";
     }
@@ -1421,8 +1466,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
         console.error('Error buscando gasolineras:', error);
       });
       
-      const locationContext = ` (cerca de ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)})`;
-      return `⛽ **Buscando gasolineras reales${locationContext}...**\n\nEstoy consultando Google Maps para encontrar gasolineras reales cerca de tu ubicación actual. Los resultados aparecerán en el mapa y en la lista de abajo.\n\n💡 **Tip:** Esencial para viajes largos en auto.`;
+      return `⛽ **Buscando gasolineras cerca de ti...**\n\nEstoy buscando las gasolineras más cercanas en tu zona. Te mostraré opciones para que puedas cargar combustible durante tu viaje.\n\n💡 **Tip:** Esencial para viajes largos en auto.`;
     } catch (error) {
       return "Hubo un problema buscando gasolineras. Intenta de nuevo en un momento.";
     }
@@ -1430,116 +1474,255 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
 
   // Función para manejar consultas de tráfico
   const handleTrafficQuery = async () => {
-    const locationContext = currentLocation 
-      ? ` (desde tu ubicación actual: ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)})`
-      : '';
-    
-    return `🚦 **Estado del tráfico${locationContext}:**\n\nEl tráfico se ve fluido en tu ruta actual. Deberías llegar a tiempo a tu destino. Si encuentras congestión, te sugeriré rutas alternativas.\n\n💡 **Consejo:** Mantén la navegación activa para recibir actualizaciones en tiempo real del tráfico.`;
+    return `🚦 **Estado del tráfico:**\n\nEl tráfico se ve fluido en tu ruta actual. Deberías llegar a tiempo a tu destino. Si encuentras congestión, te sugeriré rutas alternativas.\n\n💡 **Consejo:** Mantén la navegación activa para recibir actualizaciones en tiempo real del tráfico.`;
   };
 
   // Función para manejar consultas generales
   const handleGeneralQuery = async () => {
-    const locationContext = currentLocation 
-      ? ` (ubicación actual: ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)})`
-      : '';
-    
     const responses = [
-      `¿En qué puedo ayudarte específicamente${locationContext}? Puedo recomendarte restaurantes, alojamiento, atracciones turísticas o gasolineras.`,
-      `Estoy aquí para ayudarte durante tu viaje${locationContext}. ¿Te gustaría que te recomiende lugares para comer, dormir o visitar?`,
-      `Puedo ayudarte a encontrar los mejores lugares cerca de tu ubicación actual${locationContext}. ¿Qué tipo de lugar te interesa?`,
-      `¿Hay algo específico que necesites durante tu viaje${locationContext}? Puedo buscar restaurantes, hoteles, atracciones o gasolineras.`
+      `¿En qué puedo ayudarte? Puedo recomendarte restaurantes, departamentos, atracciones turísticas o gasolineras.`,
+      `Estoy aquí para ayudarte durante tu viaje. ¿Te gustaría que te recomiende lugares para comer, dormir o visitar?`,
+      `Puedo ayudarte a encontrar los mejores lugares cerca de ti. ¿Qué tipo de lugar te interesa?`,
+      `¿Hay algo específico que necesites durante tu viaje? Puedo buscar restaurantes, hoteles, atracciones o gasolineras.`
     ];
     
     return responses[Math.floor(Math.random() * responses.length)];
   };
 
+  // Función para manejar consultas del mejor restaurante (solo 1 resultado)
+  const handleBestRestaurantQuery = async () => {
+    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte el mejor restaurante.";
+    
+    try {
+      findNearbyPlaces('restaurant', {
+        maxResults: 1,
+        maxRadius: 20,
+        sortBy: 'rating',
+        minRating: 4.5,
+        includePrice: true
+      }).then(places => {
+        if (places.length > 0) {
+          setRecommendedPlaces(places);
+          addPinsToMap(places);
+          
+          const newTips = places.map(place => ({
+            ...place,
+            tipType: 'restaurant',
+            tipIcon: '🍽️'
+          }));
+          setTips(prev => [...prev, ...newTips]);
+          addTipPinsToMap(newTips);
+        }
+      }).catch(error => {
+        console.error('Error buscando el mejor restaurante:', error);
+      });
+      
+      return `🍽️ **Buscando el MEJOR restaurante para ti...**\n\nEstoy buscando el restaurante con mayor calificación (4.5+ estrellas) en tu zona. Solo te mostraré la mejor opción disponible.\n\n💡 **Tip:** El lugar con la mejor reputación según Google Maps.`;
+    } catch (error) {
+      return "Hubo un problema buscando el mejor restaurante. Intenta de nuevo en un momento.";
+    }
+  };
+
+  // Función para manejar consultas del mejor alojamiento (solo 1 resultado)
+  const handleBestAccommodationQuery = async () => {
+    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte el mejor alojamiento.";
+    
+    try {
+      findNearbyPlaces('lodging', {
+        maxResults: 1,
+        maxRadius: 20,
+        sortBy: 'rating',
+        minRating: 4.5,
+        includePrice: true
+      }).then(places => {
+        if (places.length > 0) {
+          setRecommendedPlaces(places);
+          addPinsToMap(places);
+          
+          const newTips = places.map(place => ({
+            ...place,
+            tipType: 'lodging',
+            tipIcon: '🏨'
+          }));
+          setTips(prev => [...prev, ...newTips]);
+          addTipPinsToMap(newTips);
+        }
+      }).catch(error => {
+        console.error('Error buscando el mejor alojamiento:', error);
+      });
+      
+      return `🏨 **Buscando el MEJOR departamento para ti...**\n\nEstoy buscando el departamento o hotel con mayor calificación (4.5+ estrellas) en tu zona. Solo te mostraré la mejor opción disponible.\n\n💡 **Tip:** El lugar con la mejor reputación según Google Maps.`;
+    } catch (error) {
+      return "Hubo un problema buscando el mejor alojamiento. Intenta de nuevo en un momento.";
+    }
+  };
+
+  // Función para manejar consultas de las mejores atracciones (5 resultados)
+  const handleBestAttractionsQuery = async () => {
+    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte las mejores atracciones.";
+    
+    try {
+      findNearbyPlaces('tourist_attraction', {
+        maxResults: 5,
+        maxRadius: 20,
+        sortBy: 'rating',
+        minRating: 4.0,
+        includePrice: false
+      }).then(places => {
+        if (places.length > 0) {
+          setRecommendedPlaces(places);
+          addPinsToMap(places);
+          
+          const newTips = places.map(place => ({
+            ...place,
+            tipType: 'tourist_attraction',
+            tipIcon: '🎯'
+          }));
+          setTips(prev => [...prev, ...newTips]);
+          addTipPinsToMap(newTips);
+        }
+      }).catch(error => {
+        console.error('Error buscando las mejores atracciones:', error);
+      });
+      
+      return `🎯 **Buscando las MEJORES atracciones para ti...**\n\nEstoy buscando las 5 atracciones turísticas con mayor calificación (4.0+ estrellas) en tu zona. Te mostraré los lugares más populares y mejor valorados.\n\n💡 **Tip:** Los lugares más populares y mejor valorados por los visitantes.`;
+    } catch (error) {
+      return "Hubo un problema buscando las mejores atracciones. Intenta de nuevo en un momento.";
+    }
+  };
+
   // Función para buscar lugares cercanos usando Google Places API real
-  const findNearbyPlaces = async (placeType: string): Promise<any[]> => {
+  const findNearbyPlaces = async (
+    placeType: string, 
+    options: {
+      maxResults?: number;
+      maxRadius?: number;
+      sortBy?: 'distance' | 'rating';
+      minRating?: number;
+      includePrice?: boolean;
+    } = {}
+  ): Promise<any[]> => {
     if (!map || !currentLocation) {
       console.error('❌ Mapa o ubicación no disponible');
       return [];
     }
-    
+
+    const {
+      maxResults = 5,
+      maxRadius = 20, // 20km por defecto
+      sortBy = 'distance',
+      minRating = 0,
+      includePrice = false
+    } = options;
+
     try {
-      console.log('🔍 Buscando lugares reales cercanos...', {
+      console.log('🔍 Búsqueda inteligente iniciada...', {
         placeType,
         location: currentLocation,
-        radius: '5km'
+        maxResults,
+        maxRadius,
+        sortBy,
+        minRating,
+        includePrice
       });
       
-      // Usar la API clásica de Places que funciona mejor
       const placesService = new window.google.maps.places.PlacesService(map);
       
-      const request = {
-        location: new window.google.maps.LatLng(currentLocation.lat, currentLocation.lng),
-        type: placeType,
-        rankBy: window.google.maps.places.RankBy.DISTANCE
-      };
+      // Intentar búsqueda con radio progresivo si no encuentra resultados
+      const searchRadii = [5, 10, 15, 20]; // km
+      let allResults: any[] = [];
       
-      console.log('🗺️ Request a Places API:', request);
-      
-      return new Promise((resolve) => {
-        placesService.nearbySearch(request, (results: any[], status: any) => {
-          console.log('📍 Status de búsqueda:', status);
-          console.log('📍 Resultados encontrados:', results?.length || 0);
-          
-          if (status === window.google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
-            console.log('✅ Lugares encontrados:', results.length);
-            
-            const processedPlaces = results.slice(0, 5).map((place: any, index: number) => {
-              console.log(`📍 Procesando lugar ${index + 1}:`, place);
-              
-              const placeLocation = {
-                lat: place.geometry.location.lat(),
-                lng: place.geometry.location.lng()
-              };
-              
-              // Calcular distancia real
-              const distance = calculateDistance(
-                currentLocation.lat,
-                currentLocation.lng,
-                placeLocation.lat,
-                placeLocation.lng
-              );
-              
-              const processedPlace = {
-                id: place.place_id,
-                name: place.name,
-                rating: place.rating || 0,
-                types: place.types || [],
-                vicinity: place.vicinity || 'Dirección no disponible',
-                location: placeLocation,
-                distance: distance,
-                distanceText: distance < 1 ? `${(distance * 1000).toFixed(0)}m` : `${distance.toFixed(1)}km`,
-                type: placeType
-              };
-              
-              console.log(`✅ Lugar procesado: ${processedPlace.name} (${processedPlace.distanceText})`);
-              return processedPlace;
-            });
-            
-            // Filtrar por distancia (menos de 5km) y ordenar por distancia
-            const filteredPlaces = processedPlaces
-              .filter((place: any) => place.distance < 5)
-              .sort((a: any, b: any) => a.distance - b.distance)
-              .slice(0, 3);
-              
-            console.log('🎯 Lugares finales:', filteredPlaces.length);
-            console.log('📍 Lugares seleccionados:', filteredPlaces.map(p => `${p.name} (${p.distanceText})`));
-            
-            resolve(filteredPlaces);
-          } else {
-            console.log('❌ No se encontraron lugares reales');
-            console.log('📊 Status:', status);
-            console.log('📊 Resultados:', results);
-            resolve([]);
-          }
+      for (const radius of searchRadii) {
+        if (allResults.length >= maxResults) break;
+        
+        console.log(`🔍 Buscando en radio de ${radius}km...`);
+        
+        const request = {
+          location: new window.google.maps.LatLng(currentLocation.lat, currentLocation.lng),
+          type: placeType,
+          rankBy: window.google.maps.places.RankBy.DISTANCE
+        };
+        
+        const results = await new Promise<any[]>((resolve) => {
+          placesService.nearbySearch(request, (results: any[], status: any) => {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
+              resolve(results);
+            } else {
+              resolve([]);
+            }
+          });
         });
+        
+        if (results.length > 0) {
+          console.log(`✅ Encontrados ${results.length} lugares en ${radius}km`);
+          allResults = [...allResults, ...results];
+          break; // Si encontramos resultados, no necesitamos expandir más
+        }
+      }
+      
+      if (allResults.length === 0) {
+        console.log('❌ No se encontraron lugares en ningún radio');
+        return [];
+      }
+      
+      console.log(`🎯 Procesando ${allResults.length} lugares encontrados...`);
+      
+      const processedPlaces = allResults.map((place: any) => {
+        const placeLocation = {
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng()
+        };
+        
+        const distance = calculateDistance(
+          currentLocation.lat,
+          currentLocation.lng,
+          placeLocation.lat,
+          placeLocation.lng
+        );
+        
+        const processedPlace = {
+          id: place.place_id,
+          name: place.name,
+          rating: place.rating || 0,
+          types: place.types || [],
+          vicinity: place.vicinity || 'Dirección no disponible',
+          address: place.vicinity || 'Dirección no disponible',
+          location: placeLocation,
+          distance: distance,
+          distanceKm: distance,
+          distanceText: distance < 1 ? `${(distance * 1000).toFixed(0)}m` : `${distance.toFixed(1)}km`,
+          type: placeType,
+          priceLevel: place.price_level || null,
+          priceText: place.price_level ? 
+            ['Gratis', '$', '$$', '$$$', '$$$$'][place.price_level] : 'Precio no disponible'
+        };
+        
+        return processedPlace;
       });
       
+      // Filtrar por rating mínimo si se especifica
+      let filteredPlaces = processedPlaces;
+      if (minRating > 0) {
+        filteredPlaces = processedPlaces.filter(place => place.rating >= minRating);
+      }
+      
+      // Ordenar según criterio especificado
+      if (sortBy === 'rating') {
+        filteredPlaces.sort((a, b) => b.rating - a.rating);
+      } else {
+        filteredPlaces.sort((a, b) => a.distance - b.distance);
+      }
+      
+      // Limitar resultados
+      const finalResults = filteredPlaces.slice(0, maxResults);
+      
+      console.log(`🎯 ${finalResults.length} lugares finales seleccionados:`, 
+        finalResults.map(p => `${p.name} (${p.distanceText}, ⭐${p.rating})`));
+      
+      return finalResults;
+      
     } catch (error) {
-      console.error('❌ Error crítico buscando lugares reales:', error);
-      console.log('🔄 No se pueden obtener lugares reales, retornando array vacío');
+      console.error('❌ Error en findNearbyPlaces:', error);
       return [];
     }
   };
@@ -1606,7 +1789,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   };
 
   // Función para agregar pins de tips al mapa
-  const addTipPinsToMap = (tips: any[]) => {
+  const addTipPinsToMap = async (tips: any[]) => {
     console.log('🗺️ addTipPinsToMap llamada con:', tips);
     console.log('🗺️ Mapa disponible:', !!map);
     
@@ -1620,7 +1803,14 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     const newTipPins: any[] = [];
     
     console.log('🗺️ Agregando pins de tips al mapa...');
-    tips.forEach((tip, index) => {
+    for (const [index, tip] of tips.entries()) {
+      // Guardar tip en la base de datos
+      const savedTip = await saveTipToDatabase(tip);
+      if (savedTip) {
+        // Usar el ID de la base de datos
+        tip.id = savedTip.id;
+        console.log('✅ Tip guardado con ID:', savedTip.id);
+      }
       const marker = new window.google.maps.Marker({
         position: tip.location,
         map: map,
@@ -1662,7 +1852,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
       
       newTipPins.push(marker);
       console.log(`🗺️ Pin ${index + 1} agregado:`, tip.name);
-    });
+    }
     
     console.log('🗺️ Total pins de tips creados:', newTipPins.length);
     setTipPins(newTipPins);
@@ -1699,7 +1889,10 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     if (directionsService && directionsRenderer) {
       const request = {
         origin: currentLocation,
-        destination: tip.location,
+        destination: {
+          lat: tip.latitude,
+          lng: tip.longitude
+        },
         travelMode: window.google.maps.TravelMode.DRIVING,
         provideRouteAlternatives: false,
         avoidHighways: false,
@@ -1791,8 +1984,87 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     setShowTipsList(false);
   };
 
+  // Función para guardar tip en la base de datos
+  const saveTipToDatabase = async (tip: any) => {
+    try {
+      const tipData = {
+        name: tip.name,
+        description: tip.description || '',
+        address: tip.address || tip.vicinity || 'Dirección no disponible',
+        latitude: tip.latitude || tip.location?.lat || 0,
+        longitude: tip.longitude || tip.location?.lng || 0,
+        rating: tip.rating || 0,
+        distanceKm: tip.distanceKm || tip.distance || 0,
+        tipType: tip.tipType,
+        tipIcon: tip.tipIcon,
+        types: tip.types || []
+      };
+
+      console.log('💾 Intentando guardar tip:', tipData);
+      const response = await api.createTip(trip?.id?.toString() || '', tipData, user?.email || 'usuario@ejemplo.com');
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Tip guardado en base de datos:', result.data);
+        return result.data;
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Error guardando tip:', response.status, response.statusText, errorText);
+        toast.error(`Error guardando tip: ${response.statusText}`);
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ Error guardando tip:', error);
+      toast.error(`Error de conexión: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      return null;
+    }
+  };
+
+  // Función para cargar tips desde la base de datos
+  const loadTipsFromDatabase = async () => {
+    try {
+      const response = await api.getTipsByTrip(trip?.id?.toString() || '');
+      if (response.ok) {
+        const result = await response.json();
+        console.log('📥 Tips cargados desde base de datos:', result.data);
+        return result.data || [];
+      } else {
+        console.error('❌ Error cargando tips:', response.statusText);
+        return [];
+      }
+    } catch (error) {
+      console.error('❌ Error cargando tips:', error);
+      return [];
+    }
+  };
+
+  // Función para eliminar tip de la base de datos
+  const deleteTipFromDatabase = async (tipId: string) => {
+    try {
+      const response = await api.deleteTip(tipId, user?.email || 'usuario@ejemplo.com');
+
+      if (response.ok) {
+        console.log('✅ Tip eliminado de base de datos');
+        return true;
+      } else {
+        console.error('❌ Error eliminando tip:', response.statusText);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error eliminando tip:', error);
+      return false;
+    }
+  };
+
   // Función para eliminar un tip específico
-  const removeTip = (tipId: string) => {
+  const removeTip = async (tipId: string) => {
+    // Eliminar de la base de datos
+    const deleted = await deleteTipFromDatabase(tipId);
+    if (deleted) {
+      console.log('✅ Tip eliminado de la base de datos');
+    }
+    
+    // Eliminar del estado local
     setTips(prev => prev.filter(tip => tip.id !== tipId));
     setTipPins(prev => {
       const pinToRemove = prev.find(pin => pin.title.includes(tipId));
@@ -2400,7 +2672,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
                                       {tip.name}
                                     </Typography>
                                     <Chip
-                                      label={tip.distanceText}
+                                      label={tip.distanceKm ? `${tip.distanceKm.toFixed(1)} km` : 'Distancia no disponible'}
                                       size="small"
                                       color="primary"
                                       variant="filled"
@@ -2427,19 +2699,32 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
                                     whiteSpace: 'nowrap'
                                   }}
                                 >
-                                  📍 {tip.vicinity}
+                                  📍 {tip.address || 'Dirección no disponible'}
                                 </Typography>
                                 
-                                {/* Rating y tipos */}
+                                {/* Rating, precio y tipos */}
                                 <Box display="flex" alignItems="center" gap={2} mb={3}>
                                   <Box display="flex" alignItems="center" gap={0.5}>
                                     <Typography variant="body2" sx={{ fontWeight: 600, color: '#ff9800' }}>
                                       ⭐
                                     </Typography>
                                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                      {tip.rating.toFixed(1)}/5
+                                      {tip.rating ? tip.rating.toFixed(1) : '0.0'}/5
                                     </Typography>
                                   </Box>
+                                  {tip.priceText && tip.priceText !== 'Precio no disponible' && (
+                                    <Chip
+                                      label={tip.priceText}
+                                      size="small"
+                                      color="success"
+                                      variant="outlined"
+                                      sx={{ 
+                                        fontWeight: 600,
+                                        fontSize: '0.7rem',
+                                        height: 18
+                                      }}
+                                    />
+                                  )}
                                   <Typography 
                                     variant="body2" 
                                     color="text.secondary"
@@ -2450,7 +2735,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
                                       flex: 1
                                     }}
                                   >
-                                    {tip.types.slice(0, 2).join(', ')}
+                                    {tip.types ? tip.types.slice(0, 2).join(', ') : 'Sin categoría'}
                                   </Typography>
                                 </Box>
                                 

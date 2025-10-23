@@ -1,6 +1,38 @@
 // Configuración de la API
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
+// Función para verificar si el backend está disponible
+export const isBackendAvailable = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/health`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('❌ Backend no disponible:', error);
+    return false;
+  }
+};
+
+// Función para verificar conectividad con el backend
+export const checkBackendConnection = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/health`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('❌ Backend no disponible:', error);
+    return false;
+  }
+};
+
 // Headers por defecto
 export const getAuthHeaders = () => {
   const token = localStorage.getItem('authToken');
@@ -82,10 +114,15 @@ export const api = {
   },
 
   getUserTrips: async (userId: number) => {
-    const response = await fetch(`${API_BASE_URL}/api/trips/user/${userId}`, {
-      headers: getAuthHeaders(),
-    });
-    return response;
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/trips/user/${userId}`, {
+        headers: getAuthHeaders(),
+      });
+      return response;
+    } catch (error) {
+      console.error('❌ Error en getUserTrips:', error);
+      throw new Error('No se pudo conectar con el servidor. Verifica que el backend esté ejecutándose en http://localhost:8080');
+    }
   },
 
   // Obtener detalles de un viaje específico
@@ -127,6 +164,87 @@ export const api = {
   deleteTrip: async (tripId: string, userId: number) => {
     const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}?userId=${userId}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  // Tips
+  createTip: async (tripId: string, tipData: any, userEmail: string) => {
+    try {
+      console.log('🔗 Creando tip:', { tripId, tipData, userEmail });
+      console.log('🔗 URL:', `${API_BASE_URL}/api/tips/trip/${tripId}?userEmail=${encodeURIComponent(userEmail)}`);
+      
+      const response = await fetch(`${API_BASE_URL}/api/tips/trip/${tripId}?userEmail=${encodeURIComponent(userEmail)}`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(), // Agregar headers de autenticación
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(tipData),
+      });
+      
+      console.log('🔗 Respuesta del servidor:', response.status, response.statusText);
+      return response;
+    } catch (error) {
+      console.error('❌ Error en createTip:', error);
+      throw new Error(`No se pudo conectar con el servidor: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    }
+  },
+
+  getTipsByTrip: async (tripId: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/tips/trip/${tripId}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  getTipsByType: async (tripId: string, tipType: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/tips/trip/${tripId}/type/${tipType}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  getNearbyTips: async (tripId: string, latitude: number, longitude: number, radiusKm: number = 5.0) => {
+    const response = await fetch(`${API_BASE_URL}/api/tips/trip/${tripId}/nearby?latitude=${latitude}&longitude=${longitude}&radiusKm=${radiusKm}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  getTipById: async (tipId: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/tips/${tipId}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  updateTip: async (tipId: string, tipData: any, userEmail: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/tips/${tipId}?userEmail=${encodeURIComponent(userEmail)}`, {
+      method: 'PUT',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(tipData),
+    });
+    return response;
+  },
+
+  deleteTip: async (tipId: string, userEmail: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/tips/${tipId}?userEmail=${encodeURIComponent(userEmail)}`, {
+      method: 'DELETE',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json'
+      },
+    });
+    return response;
+  },
+
+  getTipStats: async (tripId: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/tips/trip/${tripId}/stats`, {
       headers: getAuthHeaders(),
     });
     return response;
