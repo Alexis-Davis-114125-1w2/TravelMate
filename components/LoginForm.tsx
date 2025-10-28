@@ -30,6 +30,7 @@ import {
   VisibilityOff,
   Google,
 } from '@mui/icons-material';
+import Link from 'next/link';
 
 export default function LoginForm() {
   const [formData, setFormData] = useState({
@@ -280,15 +281,26 @@ export default function LoginForm() {
           </Box>
 
           {/* Additional Options */}
-          <Box sx={{ mb: 2 }}>
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
-            >
-              ¿Olvidaste tu contraseña?
-            </Typography>
-          </Box>
+          {activeTab === 'login' && (
+            <Box sx={{ mb: 2 }}>
+              <Link href="/forgot-password" passHref>
+                <Typography
+                  variant="body2"
+                  component="span"
+                  sx={{
+                    color: 'primary.main',
+                    cursor: 'pointer',
+                    textDecoration: 'none',
+                    '&:hover': {
+                      textDecoration: 'underline',
+                    }
+                  }}
+                >
+                  ¿Olvidaste tu contraseña?
+                </Typography>
+              </Link>
+            </Box>
+          )}
 
           <Divider sx={{ my: 2 }}>
             <Typography variant="body2" color="text.secondary">
