@@ -114,6 +114,8 @@ interface TripDetails {
   destinationAddress?: string;
   transportMode?: string;
   participants?: Participant[];
+  createBy: number;
+  adminIds: number[];
 }
 
 interface Participant {
@@ -397,6 +399,113 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
       }
     };
   }, [watchId]);
+
+  // 🧠 Determinar si el usuario actual es admin o creador
+const isUserAdmin = trip &&
+  (trip.createBy === Number(user?.id) ||
+    (trip.adminIds && trip.adminIds.includes(Number(user?.id))));
+
+  // ✅ Agregar Admin
+  const handleAddAdmin = async (adminId: number) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/trips/${trip?.id}/${user?.id}/admins/add/${adminId}`,
+        {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+        }
+      );
+      if (response.ok) {
+        toast.success('Administrador agregado correctamente');
+        const updated = await response.json();
+        setTrip(updated);
+      } else {
+        toast.error('Error al agregar administrador');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Error de conexión');
+    }
+  };
+
+  // ❌ Eliminar Admin
+  const handleRemoveAdmin = async (adminId: number) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/trips/${trip?.id}/${user?.id}/admins/remove/${adminId}`,
+        {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+        }
+      );
+      if (response.ok) {
+        toast.info('Administrador eliminado');
+        const updated = await response.json();
+        setTrip(updated);
+      } else {
+        toast.error('Error al eliminar administrador');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Error de conexión');
+    }
+  };
+
+  // ✅ Agregar Participante
+  const handleAddParticipant = async (participantId: number) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/trips/${trip?.id}/${user?.id}/participants/add/${participantId}`,
+        {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+        }
+      );
+      if (response.ok) {
+        toast.success('Participante agregado');
+        const updated = await response.json();
+        setTrip(updated);
+        setParticipants(updated.participants);
+      } else {
+        toast.error('Error al agregar participante');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Error de conexión');
+    }
+  };
+
+  // ❌ Eliminar Participante
+  const handleRemoveParticipant = async (participantId: number) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/trips/${trip?.id}/users/${user?.id}/${participantId}`,
+        {
+          method: 'DELETE',
+          headers: getAuthHeaders(),
+        }
+      );
+      if (response.ok) {
+      const result = await response.json();
+      toast.info(result.message || 'Participante eliminado');
+      // refrescar trip
+      const tripResp = await fetch(`${API_BASE_URL}/api/trips/${trip?.id}?userId=${user?.id}`, { headers: getAuthHeaders() });
+      if (tripResp.ok) {
+        const updatedTrip = await tripResp.json();
+        setTrip(updatedTrip);
+        setParticipants(updatedTrip.participants || []);
+      }
+    } else {
+      const text = await response.text();
+      console.error('Server error:', response.status, text);
+      toast.error('Error al eliminar participante');
+    }
+    } catch (error) {
+      console.error(error);
+      toast.error('Error de conexión');
+    }
+  };
+
 
   const initializeMap = () => {
     if (!mapRef.current || !trip || !window.google) return;
@@ -3367,31 +3476,50 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
                   </Box>
                 ) : (
                   <List>
-                    {participants.map((participant, index) => (
-                      <div key={participant.id}>
-                        <ListItem sx={{ px: 0 }}>
-                          <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: 'primary.main' }}>
-                              {participant.name.charAt(0).toUpperCase()}
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={participant.name}
-                            secondary={participant.email}
-                          />
-                          {participant.id === (typeof user?.id === 'string' ? parseInt(user.id, 10) : user?.id) && (
-                            <Chip
-                              label="Tú"
-                              size="small"
-                              color="primary"
-                              sx={{ fontWeight: 600 }}
-                            />
-                          )}
-                        </ListItem>
-                        {index < participants.length - 1 && <Divider />}
-                      </div>
-                    ))}
-                  </List>
+                    {participants.map((p) => (
+                      <ListItem key={p.id}>
+                      <ListItemAvatar>
+                      <Avatar src={p.profilePicture || undefined}>
+                        {p.name?.[0] || 'U'}
+                      </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={p.name}
+                        secondary={p.email}
+                      />
+                      {isUserAdmin && (
+                      <>
+                      {/* Botón eliminar participante */}
+                      <IconButton
+                        color="error"
+                        onClick={() => handleRemoveParticipant(p.id)}
+                      >
+                    <Delete />
+                      </IconButton>
+                    {/* Botón agregar como admin */}
+                    {!trip?.adminIds?.includes(p.id) && (
+                    <IconButton
+                      color="primary"
+                      onClick={() => handleAddAdmin(p.id)}
+                    >
+                        <PersonAdd />
+                        </IconButton>
+                        )}
+                        {/* Botón quitar admin */}
+                        {trip?.adminIds?.includes(p.id) && (
+                          <IconButton
+                          color="warning"
+                          onClick={() => handleRemoveAdmin(p.id)}
+                          >
+                            <Clear />
+                          </IconButton>
+                        )}
+                      </>
+                      )}
+                    </ListItem>
+                  ))}
+                </List>
+
                 )}
               </CardContent>
             </Card>
