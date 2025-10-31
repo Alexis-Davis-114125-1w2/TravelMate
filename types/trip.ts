@@ -10,6 +10,7 @@ export interface Trip {
   description?: string;
   vehicle?: 'auto' | 'avion' | 'caminando';
   cost?: number;
+  adminIds?: number[];
 }
 
 export interface TripStats {

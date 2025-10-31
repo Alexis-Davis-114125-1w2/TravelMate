@@ -72,6 +72,14 @@ export default function DashboardPage() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
+  // Función para verificar si el usuario es admin del viaje
+  const isUserAdmin = (trip: TripWithParticipants): boolean => {
+    if (!user?.id || !trip.adminIds) return false;
+    
+    const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+    return trip.adminIds.includes(userId);
+  };
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
@@ -496,6 +504,7 @@ export default function DashboardPage() {
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {trips.map((trip) => {
                 const isPlanning = trip.status?.toLowerCase() === 'planning';
+                const isAdmin = isUserAdmin(trip);
                 
                 return (
                   <Box key={trip.id} sx={{ flex: '1 1 300px', minWidth: 300 }}>
@@ -510,28 +519,31 @@ export default function DashboardPage() {
                       transition: 'all 0.3s ease',
                     }}>
                       <CardContent sx={{ flexGrow: 1, p: 3 }}>
-                        <Box display="flex" alignItems="flex-start" gap={3} mb={3} position= "relative">
-                          <IconButton
-                            size="small"
-                            onClick={() => {
-                              setTripToDelete(trip);
-                              setDeleteDialogOpen(true);
-                            }}
-                            sx={{
-                              position: 'absolute',
-                              top: -8,
-                              right: -8,
-                              bgcolor: 'error.main',
-                              color: 'white',
-                              '&:hover': {
-                                bgcolor: 'error.dark',
-                              },
-                              width: 32,
-                              height: 32,
-                            }}
-                          >
-                            <Delete sx={{ fontSize: 18 }} />
-                          </IconButton>
+                        <Box display="flex" alignItems="flex-start" gap={3} mb={3} position="relative">
+                          {/* Botón de eliminar solo visible para admins */}
+                          {isAdmin && (
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setTripToDelete(trip);
+                                setDeleteDialogOpen(true);
+                              }}
+                              sx={{
+                                position: 'absolute',
+                                top: -8,
+                                right: -8,
+                                bgcolor: 'error.main',
+                                color: 'white',
+                                '&:hover': {
+                                  bgcolor: 'error.dark',
+                                },
+                                width: 32,
+                                height: 32,
+                              }}
+                            >
+                              <Delete sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          )}
                           <Avatar sx={{ 
                             bgcolor: trip.status === 'completed' ? 'success.main' : trip.status === 'planning' ? 'primary.main' : 'warning.main', 
                             width: 56, 
@@ -546,12 +558,22 @@ export default function DashboardPage() {
                             <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
                               {trip.destination}
                             </Typography>
-                            <Chip
-                              label={getStatusLabel(trip.status)}
-                              color={getStatusColor(trip.status) as any}
-                              size="medium"
-                              sx={{ fontWeight: 600 }}
-                            />
+                            <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                              <Chip
+                                label={getStatusLabel(trip.status)}
+                                color={getStatusColor(trip.status) as any}
+                                size="medium"
+                                sx={{ fontWeight: 600 }}
+                              />
+                              {isAdmin && (
+                                <Chip
+                                  label="Administrador"
+                                  color="secondary"
+                                  size="small"
+                                  sx={{ fontWeight: 600 }}
+                                />
+                              )}
+                            </Box>
                           </Box>
                         </Box>
 
