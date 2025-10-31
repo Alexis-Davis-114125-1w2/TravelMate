@@ -46,6 +46,7 @@ import {
   Place,
   GroupAdd,
   ContentCopy,
+  Delete,
 } from '@mui/icons-material';
 
 interface TripWithParticipants extends Trip {
@@ -62,6 +63,8 @@ export default function DashboardPage() {
   const [openJoinDialog, setOpenJoinDialog] = useState(false);
   const [tripCode, setTripCode] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [tripToDelete, setTripToDelete] = useState<TripWithParticipants | null>(null);
 
   const handleCopyJoinCode = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -220,6 +223,36 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error('Error al unirse al viaje:', err);
+      setError('Error de conexión. Por favor, intenta de nuevo.');
+    }
+  };
+
+  const handleDeleteTrip = async () => {
+    if (!tripToDelete || !user?.id) return;
+  
+    try {
+      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+    
+      const response = await fetch(
+        `${API_BASE_URL}/api/trips/${tripToDelete.id}/${userId}?userId=${userId}`,
+        {
+          method: 'DELETE',
+          headers: getAuthHeaders(),
+        }
+      );
+    
+      if (response.ok) {
+        // Remover el viaje de la lista
+        setTrips(trips.filter(t => t.id !== tripToDelete.id));
+        setDeleteDialogOpen(false);
+        setTripToDelete(null);
+      } else {
+        const errorText = await response.text();
+        console.error('Error al eliminar viaje:', errorText);
+        setError('No se pudo eliminar el viaje. Por favor, intenta de nuevo.');
+      }
+    } catch (err) {
+      console.error('Error al eliminar viaje:', err);
       setError('Error de conexión. Por favor, intenta de nuevo.');
     }
   };
@@ -477,7 +510,28 @@ export default function DashboardPage() {
                       transition: 'all 0.3s ease',
                     }}>
                       <CardContent sx={{ flexGrow: 1, p: 3 }}>
-                        <Box display="flex" alignItems="flex-start" gap={3} mb={3}>
+                        <Box display="flex" alignItems="flex-start" gap={3} mb={3} position= "relative">
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setTripToDelete(trip);
+                              setDeleteDialogOpen(true);
+                            }}
+                            sx={{
+                              position: 'absolute',
+                              top: -8,
+                              right: -8,
+                              bgcolor: 'error.main',
+                              color: 'white',
+                              '&:hover': {
+                                bgcolor: 'error.dark',
+                              },
+                              width: 32,
+                              height: 32,
+                            }}
+                          >
+                            <Delete sx={{ fontSize: 18 }} />
+                          </IconButton>
                           <Avatar sx={{ 
                             bgcolor: trip.status === 'completed' ? 'success.main' : trip.status === 'planning' ? 'primary.main' : 'warning.main', 
                             width: 56, 
@@ -707,6 +761,31 @@ export default function DashboardPage() {
             disabled={!tripCode.trim()}
           >
             Unirme
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Trip Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>¿Eliminar viaje?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" color="text.secondary">
+            ¿Estás seguro que deseas eliminar el viaje <strong>{tripToDelete?.name}</strong>?
+          </Typography>
+          <Typography variant="body2" color="error" sx={{ mt: 2 }}>
+            Esta acción no se puede deshacer.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)}>
+            Cancelar
+          </Button>
+          <Button 
+            variant="contained" 
+            color="error"
+            onClick={handleDeleteTrip}
+          >
+            Eliminar
           </Button>
         </DialogActions>
       </Dialog>
