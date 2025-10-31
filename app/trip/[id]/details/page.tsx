@@ -114,7 +114,6 @@ interface TripDetails {
   destinationAddress?: string;
   transportMode?: string;
   participants?: Participant[];
-  createBy: number;
   adminIds: number[];
 }
 
@@ -402,8 +401,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
 
   // 🧠 Determinar si el usuario actual es admin o creador
 const isUserAdmin = trip &&
-  (trip.createBy === Number(user?.id) ||
-    (trip.adminIds && trip.adminIds.includes(Number(user?.id))));
+  (trip.adminIds && trip.adminIds.includes(Number(user?.id)));
 
   // ✅ Agregar Admin
   const handleAddAdmin = async (adminId: number) => {
