@@ -52,6 +52,17 @@ import {
   FormControlLabel,
   RadioGroup,
   Radio,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  ToggleButton,
+  ToggleButtonGroup,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import {
   ArrowBack,
@@ -98,6 +109,8 @@ import {
   AccountBalanceWallet,
   Wallet,
   Save,
+  ShoppingCart,
+  FilterList,
 } from '@mui/icons-material';
 
 interface TripDetails {
@@ -207,6 +220,26 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [openEditIndividualWallet, setOpenEditIndividualWallet] = useState(false);
   const [editWalletAmount, setEditWalletAmount] = useState('');
   const [editWalletCurrency, setEditWalletCurrency] = useState<'PESOS' | 'DOLARES' | 'EUROS'>('PESOS');
+
+  // Estados para compras
+  const [generalPurchases, setGeneralPurchases] = useState<any[]>([]);
+  const [individualPurchases, setIndividualPurchases] = useState<any[]>([]);
+  const [loadingPurchases, setLoadingPurchases] = useState(false);
+  const [openAddPurchase, setOpenAddPurchase] = useState(false);
+  const [purchaseDescription, setPurchaseDescription] = useState('');
+  const [purchasePrice, setPurchasePrice] = useState('');
+  const [purchaseCurrency, setPurchaseCurrency] = useState<'PESOS' | 'DOLARES' | 'EUROS'>('PESOS');
+  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [purchaseIsGeneral, setPurchaseIsGeneral] = useState(true);
+  
+  // Estados para cotizaciones
+  const [dollarRate, setDollarRate] = useState<number | null>(null);
+  const [euroRate, setEuroRate] = useState<number | null>(null);
+  const [loadingRates, setLoadingRates] = useState(false);
+  
+  // Estados para lista de compras
+  const [purchasesExpanded, setPurchasesExpanded] = useState(false);
+  const [purchaseFilter, setPurchaseFilter] = useState<'all' | 'general' | 'individual'>('all');
 
   // Debug: Log cuando cambien los tips
   useEffect(() => {
@@ -347,8 +380,10 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
           }
         }
         
-        // Cargar billeteras
+        // Cargar billeteras, compras y cotizaciones
         loadWallets(tripId, userId);
+        loadPurchases(tripId, userId);
+        loadExchangeRates();
         
       } catch (err) {
         console.error('Error al cargar datos del viaje:', err);
@@ -592,6 +627,188 @@ const isUserAdmin = trip &&
       setEditWalletCurrency(individualWallet.currency);
       setOpenEditIndividualWallet(true);
     }
+  };
+
+  // 🛒 Cargar compras
+  const loadPurchases = async (tripId: string, userId: number) => {
+    try {
+      setLoadingPurchases(true);
+      
+      // Cargar compras generales
+      const generalResponse = await api.getGeneralPurchases(tripId);
+      if (generalResponse.ok) {
+        const generalData = await generalResponse.json();
+        setGeneralPurchases(generalData.data || []);
+      }
+      
+      // Cargar compras individuales del usuario
+      const individualResponse = await api.getIndividualPurchases(tripId, userId);
+      if (individualResponse.ok) {
+        const individualData = await individualResponse.json();
+        setIndividualPurchases(individualData.data || []);
+      }
+    } catch (error) {
+      console.error('Error cargando compras:', error);
+    } finally {
+      setLoadingPurchases(false);
+    }
+  };
+
+  // 🛒 Crear compra
+  const handleCreatePurchase = async () => {
+    if (!trip?.id || !user?.id || !purchaseDescription || !purchasePrice) {
+      toast.error('Por favor, completa todos los campos');
+      return;
+    }
+
+    try {
+      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+      const purchaseData = {
+        description: purchaseDescription,
+        price: parseFloat(purchasePrice),
+        currency: purchaseCurrency,
+        purchaseDate: purchaseDate
+      };
+
+      let response;
+      if (purchaseIsGeneral) {
+        response = await api.createGeneralPurchase(trip.id.toString(), userId, purchaseData);
+      } else {
+        response = await api.createIndividualPurchase(trip.id.toString(), userId, userId, purchaseData);
+      }
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success('Compra agregada exitosamente');
+        setOpenAddPurchase(false);
+        setPurchaseDescription('');
+        setPurchasePrice('');
+        setPurchaseDate(new Date().toISOString().split('T')[0]);
+        // Recargar compras
+        loadPurchases(trip.id.toString(), userId);
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Error al crear compra');
+      }
+    } catch (error) {
+      console.error('Error creando compra:', error);
+      toast.error('Error de conexión');
+    }
+  };
+
+  // 🛒 Calcular gastos totales
+  const calculateTotalExpenses = (purchases: any[], currency: string) => {
+    return purchases
+      .filter(p => p.currency === currency)
+      .reduce((sum, p) => sum + parseFloat(p.price || 0), 0);
+  };
+
+  // 🛒 Calcular gastos generales restantes
+  const getGeneralExpensesRemaining = () => {
+    if (!generalWallet) return 0;
+    const totalExpenses = calculateTotalExpenses(generalPurchases, generalWallet.currency);
+    const walletAmount = parseFloat(generalWallet.amount || 0);
+    return walletAmount - totalExpenses;
+  };
+
+  // 🛒 Calcular mis gastos restantes
+  const getIndividualExpensesRemaining = () => {
+    if (!individualWallet) return 0;
+    const totalExpenses = calculateTotalExpenses(individualPurchases, individualWallet.currency);
+    const walletAmount = parseFloat(individualWallet.amount || 0);
+    return walletAmount - totalExpenses;
+  };
+
+  // 💱 Obtener cotizaciones de monedas
+  const loadExchangeRates = async () => {
+    try {
+      setLoadingRates(true);
+      
+      // Obtener cotización del dólar
+      const dollarResponse = await fetch('https://dolarapi.com/v1/dolares/oficial');
+      if (dollarResponse.ok) {
+        const dollarData = await dollarResponse.json();
+        setDollarRate(dollarData.compra);
+      }
+      
+      // Obtener cotización del euro
+      const euroResponse = await fetch('https://dolarapi.com/v1/cotizaciones/eur');
+      if (euroResponse.ok) {
+        const euroData = await euroResponse.json();
+        setEuroRate(euroData.compra);
+      }
+    } catch (error) {
+      console.error('Error cargando cotizaciones:', error);
+    } finally {
+      setLoadingRates(false);
+    }
+  };
+
+  // 💱 Convertir precio a la moneda de la billetera
+  const convertToWalletCurrency = (price: number, fromCurrency: string, toCurrency: string): number => {
+    // Si las monedas son iguales, no hay conversión
+    if (fromCurrency === toCurrency) {
+      return price;
+    }
+
+    // Si la moneda destino es pesos, convertir desde la moneda origen
+    if (toCurrency === 'PESOS') {
+      if (fromCurrency === 'DOLARES' && dollarRate) {
+        return price * dollarRate;
+      }
+      if (fromCurrency === 'EUROS' && euroRate) {
+        return price * euroRate;
+      }
+    }
+
+    // Si la moneda origen es pesos, convertir a la moneda destino
+    if (fromCurrency === 'PESOS') {
+      if (toCurrency === 'DOLARES' && dollarRate) {
+        return price / dollarRate;
+      }
+      if (toCurrency === 'EUROS' && euroRate) {
+        return price / euroRate;
+      }
+    }
+
+    // Conversión entre dólares y euros (a través de pesos)
+    if (fromCurrency === 'DOLARES' && toCurrency === 'EUROS' && dollarRate && euroRate) {
+      const priceInPesos = price * dollarRate;
+      return priceInPesos / euroRate;
+    }
+    if (fromCurrency === 'EUROS' && toCurrency === 'DOLARES' && dollarRate && euroRate) {
+      const priceInPesos = price * euroRate;
+      return priceInPesos / dollarRate;
+    }
+
+    // Si no hay cotizaciones disponibles, retornar el precio original
+    return price;
+  };
+
+  // 💱 Calcular gastos totales convertidos a la moneda de la billetera
+  const calculateTotalExpensesConverted = (purchases: any[], walletCurrency: string) => {
+    return purchases.reduce((sum, purchase) => {
+      const purchasePrice = parseFloat(purchase.price || 0);
+      const purchaseCurrency = purchase.currency;
+      const convertedPrice = convertToWalletCurrency(purchasePrice, purchaseCurrency, walletCurrency);
+      return sum + convertedPrice;
+    }, 0);
+  };
+
+  // 💱 Calcular gastos generales restantes (con conversión)
+  const getGeneralExpensesRemainingConverted = () => {
+    if (!generalWallet) return 0;
+    const totalExpenses = calculateTotalExpensesConverted(generalPurchases, generalWallet.currency);
+    const walletAmount = parseFloat(generalWallet.amount || 0);
+    return walletAmount - totalExpenses;
+  };
+
+  // 💱 Calcular mis gastos restantes (con conversión)
+  const getIndividualExpensesRemainingConverted = () => {
+    if (!individualWallet) return 0;
+    const totalExpenses = calculateTotalExpensesConverted(individualPurchases, individualWallet.currency);
+    const walletAmount = parseFloat(individualWallet.amount || 0);
+    return walletAmount - totalExpenses;
   };
 
   // ❌ Eliminar Participante
@@ -2592,11 +2809,25 @@ const isUserAdmin = trip &&
                   </Paper>
                 )}
 
-                {/* Sección de Billeteras */}
+                {/* Sección de Billeteras y Gastos */}
                 <Box sx={{ mt: 3 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
-                    Billeteras
-                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      Billeteras y Gastos
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      startIcon={<Add />}
+                      onClick={() => setOpenAddPurchase(true)}
+                      sx={{
+                        bgcolor: '#4caf50',
+                        '&:hover': { bgcolor: '#45a049' },
+                        textTransform: 'none',
+                      }}
+                    >
+                      Agregar Compra
+                    </Button>
+                  </Box>
 
                   {/* Billetera General */}
                   {loadingWallets ? (
@@ -2683,6 +2914,212 @@ const isUserAdmin = trip &&
                       )}
                     </>
                   )}
+
+                  {/* Sección de Gastos */}
+                  <Box sx={{ mt: 4 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
+                      Gastos
+                    </Typography>
+
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+                      {/* Gastos Generales */}
+                      <Card sx={{ background: 'linear-gradient(135deg, #ff9800 0%, #ffb74d 100%)', color: 'white' }}>
+                        <CardContent sx={{ p: 2 }}>
+                          <Box display="flex" alignItems="center" gap={1} mb={2}>
+                            <AccountBalanceWallet sx={{ fontSize: 24 }} />
+                            <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                              Gastos Generales
+                            </Typography>
+                          </Box>
+                          {loadingPurchases ? (
+                            <CircularProgress size={24} sx={{ color: 'white' }} />
+                          ) : (
+                            <>
+                              <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
+                                {generalWallet?.currencySymbol || '$'} {getGeneralExpensesRemainingConverted().toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)', mb: 1 }}>
+                                Total gastos: {generalWallet?.currencySymbol || '$'} {calculateTotalExpensesConverted(generalPurchases, generalWallet?.currency || 'PESOS').toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                                {generalPurchases.length} {generalPurchases.length === 1 ? 'compra' : 'compras'} registradas
+                              </Typography>
+                            </>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Mis Gastos */}
+                      <Card sx={{ background: 'linear-gradient(135deg, #9c27b0 0%, #ba68c8 100%)', color: 'white' }}>
+                        <CardContent sx={{ p: 2 }}>
+                          <Box display="flex" alignItems="center" gap={1} mb={2}>
+                            <Wallet sx={{ fontSize: 24 }} />
+                            <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                              Mis Gastos
+                            </Typography>
+                          </Box>
+                          {loadingPurchases ? (
+                            <CircularProgress size={24} sx={{ color: 'white' }} />
+                          ) : (
+                            <>
+                              <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
+                                {individualWallet?.currencySymbol || '$'} {getIndividualExpensesRemainingConverted().toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)', mb: 1 }}>
+                                Total gastos: {individualWallet?.currencySymbol || '$'} {calculateTotalExpensesConverted(individualPurchases, individualWallet?.currency || 'PESOS').toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                                {individualPurchases.length} {individualPurchases.length === 1 ? 'compra' : 'compras'} registradas
+                              </Typography>
+                            </>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Box>
+                  </Box>
+
+                  {/* Lista de Compras */}
+                  <Box sx={{ mt: 4 }}>
+                    <Accordion 
+                      expanded={purchasesExpanded} 
+                      onChange={() => setPurchasesExpanded(!purchasesExpanded)}
+                      sx={{
+                        boxShadow: 'none',
+                        border: '1px solid #E0E0E0',
+                        borderRadius: 2,
+                        '&:before': { display: 'none' },
+                      }}
+                    >
+                      <AccordionSummary
+                        expandIcon={<ExpandMore />}
+                        sx={{
+                          bgcolor: '#F5F5F5',
+                          borderRadius: 2,
+                          '&:hover': { bgcolor: '#EEEEEE' },
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                          <ShoppingCart sx={{ color: '#4CAF50' }} />
+                          <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
+                            Lista de Compras ({(generalPurchases.length + individualPurchases.length)})
+                          </Typography>
+                        </Box>
+                      </AccordionSummary>
+                      <AccordionDetails sx={{ p: 3 }}>
+                        {/* Filtros */}
+                        <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <FilterList sx={{ color: '#666' }} />
+                          <FormControl>
+                            <ToggleButtonGroup
+                              value={purchaseFilter}
+                              exclusive
+                              onChange={(e, newValue) => {
+                                if (newValue !== null) {
+                                  setPurchaseFilter(newValue);
+                                }
+                              }}
+                              size="small"
+                            >
+                              <ToggleButton value="all">Todas</ToggleButton>
+                              <ToggleButton value="general">Generales</ToggleButton>
+                              <ToggleButton value="individual">Individuales</ToggleButton>
+                            </ToggleButtonGroup>
+                          </FormControl>
+                        </Box>
+
+                        {/* Lista de compras */}
+                        {loadingPurchases ? (
+                          <Box display="flex" justifyContent="center" py={4}>
+                            <CircularProgress />
+                          </Box>
+                        ) : (
+                          <>
+                            {(() => {
+                              const allPurchases = [
+                                ...generalPurchases.map((p: any) => ({ ...p, isGeneral: true })),
+                                ...individualPurchases.map((p: any) => ({ ...p, isGeneral: false }))
+                              ].filter((purchase) => {
+                                if (purchaseFilter === 'all') return true;
+                                if (purchaseFilter === 'general') return purchase.isGeneral === true;
+                                if (purchaseFilter === 'individual') return purchase.isGeneral === false;
+                                return true;
+                              }).sort((a, b) => {
+                                const dateA = new Date(a.purchaseDate).getTime();
+                                const dateB = new Date(b.purchaseDate).getTime();
+                                return dateB - dateA; // Más reciente primero
+                              });
+
+                              if (allPurchases.length === 0) {
+                                return (
+                                  <Box sx={{ textAlign: 'center', py: 4 }}>
+                                    <ShoppingCart sx={{ fontSize: 60, color: '#BDBDBD', mb: 2 }} />
+                                    <Typography variant="body1" color="text.secondary">
+                                      No hay compras registradas
+                                    </Typography>
+                                  </Box>
+                                );
+                              }
+
+                              return (
+                                <TableContainer component={Paper} sx={{ maxHeight: 500, boxShadow: 'none', border: '1px solid #E0E0E0' }}>
+                                  <Table stickyHeader>
+                                    <TableHead>
+                                      <TableRow>
+                                        <TableCell sx={{ fontWeight: 600 }}>Descripción</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>Precio</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>Fecha</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>Tipo</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>Creado por</TableCell>
+                                      </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                      {allPurchases.map((purchase: any) => (
+                                        <TableRow
+                                          key={purchase.id}
+                                          sx={{
+                                            '&:hover': { bgcolor: '#F5F5F5' },
+                                          }}
+                                        >
+                                          <TableCell>{purchase.description}</TableCell>
+                                          <TableCell>
+                                            {purchase.currencySymbol || '$'} {parseFloat(purchase.price || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+                                              {purchase.currency === 'PESOS' ? 'Pesos' : purchase.currency === 'DOLARES' ? 'Dólares' : 'Euros'}
+                                            </Typography>
+                                          </TableCell>
+                                          <TableCell>
+                                            {new Date(purchase.purchaseDate).toLocaleDateString('es-AR', {
+                                              day: '2-digit',
+                                              month: '2-digit',
+                                              year: 'numeric'
+                                            })}
+                                          </TableCell>
+                                          <TableCell>
+                                            <Chip
+                                              label={purchase.isGeneral ? 'General' : 'Individual'}
+                                              size="small"
+                                              sx={{
+                                                bgcolor: purchase.isGeneral ? '#FF9800' : '#9C27B0',
+                                                color: 'white',
+                                                fontWeight: 500,
+                                              }}
+                                            />
+                                          </TableCell>
+                                          <TableCell>
+                                            {purchase.createdByName || 'N/A'}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </TableContainer>
+                              );
+                            })()}
+                          </>
+                        )}
+                      </AccordionDetails>
+                    </Accordion>
+                  </Box>
                 </Box>
               </CardContent>
             </Card>
@@ -3986,6 +4423,157 @@ const isUserAdmin = trip &&
             disabled={!editWalletAmount || parseFloat(editWalletAmount) < 0}
           >
             Guardar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog para agregar compra */}
+      <Dialog open={openAddPurchase} onClose={() => setOpenAddPurchase(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Agregar Compra</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Descripción"
+              value={purchaseDescription}
+              onChange={(e) => setPurchaseDescription(e.target.value)}
+              placeholder="Ej: Almuerzo en restaurante"
+              sx={{ mb: 3 }}
+            />
+            <TextField
+              fullWidth
+              label="Precio"
+              type="number"
+              value={purchasePrice}
+              onChange={(e) => setPurchasePrice(e.target.value)}
+              placeholder="0.00"
+              inputProps={{ min: 0, step: 0.01 }}
+              sx={{ mb: 3 }}
+            />
+            <TextField
+              fullWidth
+              label="Fecha de Compra"
+              type="date"
+              value={purchaseDate}
+              onChange={(e) => setPurchaseDate(e.target.value)}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              sx={{ mb: 3 }}
+            />
+            <FormControl fullWidth sx={{ mb: 3 }}>
+              <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', fontWeight: 500 }}>
+                Moneda
+              </Typography>
+              <RadioGroup
+                value={purchaseCurrency}
+                onChange={(e) => setPurchaseCurrency(e.target.value as 'PESOS' | 'DOLARES' | 'EUROS')}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  gap: 1,
+                  '& .MuiFormControlLabel-root': {
+                    margin: 0,
+                    padding: 1.5,
+                    borderRadius: 2,
+                    border: '2px solid transparent',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(3, 169, 244, 0.05)',
+                      borderColor: 'primary.light',
+                    },
+                    '&.Mui-checked': {
+                      backgroundColor: 'rgba(3, 169, 244, 0.1)',
+                      borderColor: 'primary.main',
+                    }
+                  }
+                }}
+              >
+                <FormControlLabel
+                  value="PESOS"
+                  control={<Radio size="small" />}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>$</Typography>
+                      <Typography variant="body2">Pesos</Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel
+                  value="DOLARES"
+                  control={<Radio size="small" />}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>US$</Typography>
+                      <Typography variant="body2">Dólares</Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel
+                  value="EUROS"
+                  control={<Radio size="small" />}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>€</Typography>
+                      <Typography variant="body2">Euros</Typography>
+                    </Box>
+                  }
+                />
+              </RadioGroup>
+            </FormControl>
+            <FormControl fullWidth>
+              <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', fontWeight: 500 }}>
+                Tipo de Compra
+              </Typography>
+              <RadioGroup
+                value={purchaseIsGeneral ? 'general' : 'individual'}
+                onChange={(e) => setPurchaseIsGeneral(e.target.value === 'general')}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  gap: 1,
+                  '& .MuiFormControlLabel-root': {
+                    margin: 0,
+                    padding: 1.5,
+                    borderRadius: 2,
+                    border: '2px solid transparent',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(3, 169, 244, 0.05)',
+                      borderColor: 'primary.light',
+                    },
+                    '&.Mui-checked': {
+                      backgroundColor: 'rgba(3, 169, 244, 0.1)',
+                      borderColor: 'primary.main',
+                    }
+                  }
+                }}
+              >
+                <FormControlLabel
+                  value="general"
+                  control={<Radio size="small" />}
+                  label="General"
+                />
+                <FormControlLabel
+                  value="individual"
+                  control={<Radio size="small" />}
+                  label="Privada"
+                />
+              </RadioGroup>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setOpenAddPurchase(false)}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Save />}
+            onClick={handleCreatePurchase}
+            disabled={!purchaseDescription || !purchasePrice || parseFloat(purchasePrice) <= 0}
+          >
+            Agregar
           </Button>
         </DialogActions>
       </Dialog>

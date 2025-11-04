@@ -66,6 +66,8 @@ export default function CreateTripPage() {
   const [cost, setCost] = useState('');
   const [currency, setCurrency] = useState<'PESOS' | 'DOLARES' | 'EUROS'>('PESOS');
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [selectedIcon, setSelectedIcon] = useState('sun');
   const [selectedVehicle, setSelectedVehicle] = useState('auto');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -317,10 +319,43 @@ export default function CreateTripPage() {
   };
 
   // Función para manejar la selección de imagen
-  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (file: File) => {
+    if (file && file.type.startsWith('image/')) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      toast.error('Por favor, selecciona un archivo de imagen válido');
+    }
+  };
+
+  // Manejar drag and drop
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleImageChange(file);
+    }
+  };
+
+  const handleFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setImageFile(file);
+      handleImageChange(file);
     }
   };
 
@@ -344,7 +379,15 @@ export default function CreateTripPage() {
       return;
     }
 
-    if (new Date(dateI) >= new Date(dateF)) {
+    // Comparar fechas usando componentes para evitar problemas de zona horaria
+    const [yearI, monthI, dayI] = dateI.split('-').map(Number);
+    const [yearF, monthF, dayF] = dateF.split('-').map(Number);
+    const startDate = new Date(yearI, monthI - 1, dayI);
+    const endDate = new Date(yearF, monthF - 1, dayF);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+    
+    if (startDate >= endDate) {
       toast.error('La fecha de fin debe ser posterior a la fecha de inicio');
       setIsSubmitting(false);
       return;
@@ -353,8 +396,9 @@ export default function CreateTripPage() {
     // Validar que la fecha de inicio no sea en el pasado
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    if (new Date(dateI).getDay < today.getDay) {
-      toast.error('La fecha de inicio no puede ser en el pasado');
+    
+    if (startDate < today) {
+      toast.error('La fecha de inicio no puede ser anterior a la fecha actual');
       setIsSubmitting(false);
       return;
     }
@@ -490,42 +534,76 @@ export default function CreateTripPage() {
   ];
 
   return (
-    <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
-      {/* App Bar */}
-      <AppBar position="static" elevation={0} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
-        <Toolbar>
+    <Box sx={{ 
+      flexGrow: 1, 
+      minHeight: '100vh', 
+      bgcolor: '#FAFAFA',
+      fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      position: 'relative',
+      backgroundImage: imagePreview ? `url(${imagePreview})` : 'linear-gradient(135deg, #E3F2FD 0%, #E8F5E9 25%, #FFF3E0 50%, #F3E5F5 75%, #E1F5FE 100%)',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundAttachment: 'fixed',
+    }}>
+      {/* Fondo degradado colorido por defecto (cuando no hay imagen) */}
+      {!imagePreview && (
+        <Box sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'linear-gradient(135deg, #E3F2FD 0%, #E8F5E9 25%, #FFF3E0 50%, #F3E5F5 75%, #E1F5FE 100%)',
+          zIndex: 0,
+          opacity: 0.6,
+        }} />
+      )}
+      
+      {/* Overlay blurreado para la imagen de fondo */}
+      {imagePreview && (
+        <Box sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundImage: `url(${imagePreview})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          filter: 'blur(20px)',
+          opacity: 0.3,
+          zIndex: 0,
+          transform: 'scale(1.1)', // Escalar para evitar bordes blancos
+        }} />
+      )}
+      
+      <Box sx={{ position: 'relative', zIndex: 1 }}>
+        {/* Minimal Header */}
+        <Box sx={{ 
+          bgcolor: '#E3F2FD',
+          borderBottom: '1px solid #BBDEFB',
+          px: 3,
+          py: 2,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <IconButton
-            edge="start"
-            color="inherit"
+              size="small"
             onClick={() => router.back()}
-            sx={{ mr: 2 }}
+              sx={{ color: '#666' }}
           >
             <ArrowBack />
           </IconButton>
-          <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
-            <Add />
-          </Avatar>
-          <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="h6" component="h1" sx={{ fontWeight: 600 }}>
+            <TravelExplore sx={{ color: '#03a9f4', fontSize: 24 }} />
+            <Typography variant="h6" sx={{ fontWeight: 500, color: '#424242' }}>
               Crear Nuevo Viaje
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Planifica tu próxima aventura
-            </Typography>
           </Box>
-        </Toolbar>
-      </AppBar>
-
-      <Container maxWidth="md" sx={{ py: 6 }}>
-        {/* Header Section */}
-        <Box sx={{ mb: 6, textAlign: 'center' }}>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mb: 2, color: 'text.primary' }}>
-            Crear Nuevo Viaje
-          </Typography>
-          <Typography variant="body1" sx={{ color: 'text.secondary', maxWidth: 600, mx: 'auto' }}>
-            Planifica tu próxima aventura con todos los detalles importantes
-          </Typography>
         </Box>
+
+        <Box sx={{ maxWidth: '1200px', mx: 'auto', p: 4 }}>
 
         {/* Mostrar errores */}
         {error && (
@@ -535,19 +613,17 @@ export default function CreateTripPage() {
         )}
 
         <Card sx={{ 
-          background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.7) 100%)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255,255,255,0.2)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-        }}>
-          <CardContent sx={{ p: 6 }}>
-            <Box component="form" onSubmit={handleSubmit} sx={{ '& > *': { mb: 4 } }}>
+            bgcolor: imagePreview ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.9)',
+            backdropFilter: imagePreview ? 'blur(10px)' : 'none',
+            border: imagePreview ? '1px solid #E0E0E0' : '1px solid rgba(187, 222, 251, 0.5)',
+            boxShadow: imagePreview ? 'none' : '0 4px 20px rgba(25, 118, 210, 0.1)',
+            borderRadius: 2,
+          }}>
+            <CardContent sx={{ p: 4 }}>
+              <Box component="form" onSubmit={handleSubmit} sx={{ '& > *': { mb: 3 } }}>
             
-              {/* Nombre del viaje */}
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
-                  Información Básica
-                </Typography>
+              {/* Nombre del viaje y Descripción en la misma fila */}
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 <TextField
                   fullWidth
                   label="Nombre del viaje"
@@ -557,21 +633,35 @@ export default function CreateTripPage() {
                   required
                   inputProps={{ maxLength: 150 }}
                   sx={{
+                    flex: '1 1 300px',
                     '& .MuiOutlinedInput-root': {
                       borderRadius: 2,
+                      bgcolor: 'white',
+                    }
+                  }}
+                />
+                <TextField
+                  fullWidth
+                  label="Descripción"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Describe tu viaje..."
+                  multiline
+                  rows={3}
+                  sx={{
+                    flex: '1 1 300px',
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      bgcolor: 'white',
                     }
                   }}
                 />
               </Box>
 
-              {/* Origen y Destino */}
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
-                  Ubicaciones
-                </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {/* Origen y Destino en la misma fila */}
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 2 }}>
                   {/* Origen */}
-                  <Box>
+                  <Box sx={{ flex: '1 1 300px' }}>
                     <TextField
                       ref={originInputRef}
                       fullWidth
@@ -622,7 +712,7 @@ export default function CreateTripPage() {
                   </Box>
 
                   {/* Destino */}
-                  <Box>
+                  <Box sx={{ flex: '1 1 300px' }}>
                     <TextField
                       ref={destinationInputRef}
                       fullWidth
@@ -639,6 +729,7 @@ export default function CreateTripPage() {
                       sx={{
                         '& .MuiOutlinedInput-root': {
                           borderRadius: 2,
+                          bgcolor: 'white',
                         }
                       }}
                     />
@@ -673,87 +764,171 @@ export default function CreateTripPage() {
                     )}
                   </Box>
                 </Box>
-              </Box>
-              
-              {/* Descripción */}
-              <TextField
-                fullWidth
-                label="Descripción"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe tu viaje..."
-                multiline
-                rows={3}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                  }
-                }}
-              />
 
-              {/* Imagen del viaje */}
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
-                  Imagen del Viaje (Opcional)
+              {/* Imagen del viaje y Fechas en la misma fila */}
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 2 }}>
+                {/* Imagen del viaje - Drag and Drop */}
+                <Box sx={{ flex: '1 1 300px' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
+                    Imagen del Viaje (Opcional)
+                  </Typography>
+                  <Box
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    sx={{
+                      border: `3px dashed ${isDragging ? '#81c784' : '#81c784'}`,
+                      borderRadius: '20px',
+                      p: { xs: 3, md: 6.25 },
+                      textAlign: 'center',
+                      background: isDragging 
+                        ? 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)'
+                        : 'linear-gradient(135deg, #f1f8e9 0%, #e8f5e9 100%)',
+                      cursor: 'pointer',
+                      transition: 'all 0.4s ease',
+                      position: 'relative',
+                      minHeight: 200,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 2,
+                      overflow: 'hidden',
+                      '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        top: '-50%',
+                        left: '-50%',
+                        width: '200%',
+                        height: '200%',
+                        background: 'linear-gradient(45deg, transparent, rgba(129, 199, 132, 0.1), transparent)',
+                        transform: 'rotate(45deg)',
+                        transition: 'all 0.6s',
+                      },
+                      '&:hover': {
+                        borderColor: '#66bb6a',
+                        background: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',
+                        transform: 'scale(1.02)',
+                        boxShadow: '0 10px 40px rgba(129, 199, 132, 0.3)',
+                        '&::before': {
+                          left: '100%',
+                        },
+                      },
+                    }}
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = (e: any) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleImageChange(file);
+                      }
+                    };
+                    input.click();
+                  }}
+                >
+                  {imagePreview ? (
+                    <>
+                      <Box
+                        component="img"
+                        src={imagePreview}
+                        alt="Preview"
+                        sx={{
+                          maxWidth: '100%',
+                          maxHeight: 300,
+                          borderRadius: 2,
+                          objectFit: 'contain',
+                        }}
+                      />
+                      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
+                        {imageFile?.name}
                 </Typography>
                 <Button
                   variant="outlined"
-                  component="label"
-                  sx={{ borderRadius: 2 }}
-                >
-                  {imageFile ? 'Cambiar Imagen' : 'Subir Imagen'}
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={handleImageChange}
-                  />
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setImageFile(null);
+                          setImagePreview(null);
+                        }}
+                        sx={{ mt: 1 }}
+                      >
+                        Eliminar Imagen
                 </Button>
-                {imageFile && (
-                  <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
-                    Archivo seleccionado: {imageFile.name}
-                  </Typography>
-                )}
-              </Box>
-
-              {/* Fechas */}
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
-                  Fechas del Viaje
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                  <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
-                    <TextField
-                      fullWidth
-                      label="Fecha de inicio"
-                      type="date"
-                      value={dateI}
-                      onChange={(e) => setDateI(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
-                      required
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                        }
-                      }}
-                    />
-                  </Box>
-                  <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
-                    <TextField
-                      fullWidth
-                      label="Fecha de fin"
-                      type="date"
-                      value={dateF}
-                      onChange={(e) => setDateF(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
-                      required
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                        }
-                      }}
-                    />
-                  </Box>
+                    </>
+                  ) : (
+                    <>
+                      <Add sx={{ 
+                        fontSize: 64, 
+                        color: '#81c784',
+                        mb: 2,
+                        animation: 'bounce 2s ease-in-out infinite',
+                        '@keyframes bounce': {
+                          '0%, 100%': { transform: 'translateY(0)' },
+                          '50%': { transform: 'translateY(-15px)' },
+                        },
+                        position: 'relative',
+                        zIndex: 1,
+                      }} />
+                      <Typography variant="body1" sx={{ color: '#2c3e50', fontWeight: 500, position: 'relative', zIndex: 1 }}>
+                        <strong>Arrastra y suelta una imagen aquí</strong>
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#2c3e50', position: 'relative', zIndex: 1 }}>
+                        o haz clic para seleccionar
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#757575', mt: 1, position: 'relative', zIndex: 1 }}>
+                        PNG, JPG, GIF hasta 10MB
+                      </Typography>
+                    </>
+                  )}
+                </Box>
+                </Box>
+                
+                {/* Fechas - en columna al lado de la imagen */}
+                <Box sx={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <TextField
+                    fullWidth
+                    label="Fecha de inicio"
+                    type="date"
+                    value={dateI}
+                    onChange={(e) => setDateI(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    inputProps={{
+                      min: new Date().toISOString().split('T')[0]
+                    }}
+                    required
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        bgcolor: 'white',
+                      }
+                    }}
+                  />
+                  <TextField
+                    fullWidth
+                    label="Fecha de fin"
+                    type="date"
+                    value={dateF}
+                    onChange={(e) => {
+                      const newDateF = e.target.value;
+                      setDateF(newDateF);
+                      if (dateI && newDateF && new Date(newDateF) < new Date(dateI)) {
+                        toast.warning('La fecha de fin no puede ser anterior a la fecha de inicio');
+                      }
+                    }}
+                    InputLabelProps={{ shrink: true }}
+                    inputProps={{
+                      min: dateI || new Date().toISOString().split('T')[0]
+                    }}
+                    required
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        bgcolor: 'white',
+                      }
+                    }}
+                  />
                 </Box>
               </Box>
 
@@ -763,10 +938,11 @@ export default function CreateTripPage() {
                   severity="info" 
                   sx={{ 
                     borderRadius: 2,
-                    background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
-                    color: 'white',
+                    bgcolor: '#E3F2FD',
+                    color: '#1976D2',
+                    border: '1px solid #BBDEFB',
                     '& .MuiAlert-icon': {
-                      color: 'white'
+                      color: '#1976D2'
                     }
                   }}
                 >
@@ -775,10 +951,6 @@ export default function CreateTripPage() {
               )}
 
               {/* Costo */}
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
-                  Presupuesto
-                </Typography>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                   <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
                     <TextField
@@ -799,6 +971,7 @@ export default function CreateTripPage() {
                       sx={{
                         '& .MuiOutlinedInput-root': {
                           borderRadius: 2,
+                          bgcolor: 'white',
                         }
                       }}
                     />
@@ -864,15 +1037,11 @@ export default function CreateTripPage() {
                         />
                       </RadioGroup>
                     </FormControl>
-                  </Box>
                 </Box>
               </Box>
 
               {/* Selector de vehículo */}
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: 'text.primary' }}>
-                  Medio de Transporte
-                </Typography>
                 <FormControl component="fieldset" fullWidth>
                   <RadioGroup
                     value={selectedVehicle}
@@ -948,9 +1117,6 @@ export default function CreateTripPage() {
 
               {/* Selector de icono */}
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: 'text.primary' }}>
-                  Tipo de Viaje
-                </Typography>
                 <FormControl component="fieldset" fullWidth>
                   <RadioGroup
                     value={selectedIcon}
@@ -1026,55 +1192,40 @@ export default function CreateTripPage() {
 
               {/* Preview del viaje */}
               {name && (
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: 'text.primary' }}>
-                    Vista Previa
-                  </Typography>
                   <Card sx={{ 
-                    background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
-                    color: 'white',
-                    borderRadius: 3,
-                    overflow: 'hidden',
-                    '&:hover': {
-                      transform: 'translateY(-4px)',
-                      boxShadow: '0 12px 24px rgba(3, 169, 244, 0.3)',
-                    },
-                    transition: 'all 0.3s ease',
-                  }}>
-                    <CardContent sx={{ p: 4 }}>
+                  bgcolor: '#E3F2FD',
+                  borderRadius: 2,
+                  border: '1px solid #BBDEFB',
+                  boxShadow: 'none',
+                }}>
+                  <CardContent sx={{ p: 3 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                         <Avatar sx={{ 
-                          bgcolor: 'rgba(255,255,255,0.2)', 
-                          width: 80, 
-                          height: 80,
-                          backdropFilter: 'blur(10px)',
-                          border: '2px solid rgba(255,255,255,0.3)'
+                        bgcolor: '#03a9f4', 
+                        width: 60, 
+                        height: 60,
                         }}>
                           {getIcon(selectedIcon)}
                         </Avatar>
                         <Box sx={{ flexGrow: 1 }}>
-                          <Typography variant="h5" component="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                        <Typography variant="h6" component="h4" sx={{ fontWeight: 600, mb: 0.5, color: '#1976D2' }}>
                             {name}
                           </Typography>
                           {destination && (
-                            <Typography variant="body2" sx={{ opacity: 0.9, mb: 1, fontWeight: 600 }}>
-                              Destino: {destination}
+                          <Typography variant="body2" sx={{ color: '#64B5F6', mb: 1 }}>
+                            {destination}
                             </Typography>
                           )}
-                          {description && (
-                            <Typography variant="body1" sx={{ opacity: 0.9, mb: 2 }}>
-                              {description}
-                            </Typography>
-                          )}
-                          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
                             {dateI && dateF && (
                               <Chip
-                                label={`${new Date(dateI).toLocaleDateString('es-ES')} - ${new Date(dateF).toLocaleDateString('es-ES')}`}
+                              label={`${new Date(dateI).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })} - ${new Date(dateF).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}`}
                                 size="small"
                                 sx={{ 
-                                  bgcolor: 'rgba(255,255,255,0.2)',
+                                bgcolor: '#1976D2',
                                   color: 'white',
-                                  fontWeight: 600
+                                fontWeight: 500,
+                                fontSize: '0.7rem',
                                 }}
                               />
                             )}
@@ -1083,19 +1234,21 @@ export default function CreateTripPage() {
                               size="small"
                               icon={getVehicleIcon(selectedVehicle)}
                               sx={{ 
-                                bgcolor: 'rgba(255,255,255,0.2)',
+                              bgcolor: '#1976D2',
                                 color: 'white',
-                                fontWeight: 600
+                              fontWeight: 500,
+                              fontSize: '0.7rem',
                               }}
                             />
                             {cost && (
                               <Chip
-                                label={`$${parseFloat(cost).toLocaleString()}`}
+                              label={`${currency === 'PESOS' ? '$' : currency === 'DOLARES' ? 'US$' : '€'}${parseFloat(cost).toLocaleString()}`}
                                 size="small"
                                 sx={{ 
-                                  bgcolor: 'rgba(255,255,255,0.2)',
+                                bgcolor: '#1976D2',
                                   color: 'white',
-                                  fontWeight: 600
+                                fontWeight: 500,
+                                fontSize: '0.7rem',
                                 }}
                               />
                             )}
@@ -1104,17 +1257,16 @@ export default function CreateTripPage() {
                       </Box>
                     </CardContent>
                   </Card>
-                </Box>
               )}
 
               {/* Botones */}
               <Box sx={{ 
                 display: 'flex', 
                 justifyContent: 'flex-end', 
-                gap: 3, 
-                pt: 4,
-                borderTop: '1px solid rgba(0,0,0,0.1)',
-                mt: 4
+                gap: 2, 
+                pt: 3,
+                borderTop: '1px solid #E0E0E0',
+                mt: 3
               }}>
                 <Button
                   variant="outlined"
@@ -1122,15 +1274,16 @@ export default function CreateTripPage() {
                   startIcon={<Cancel />}
                   disabled={isSubmitting}
                   sx={{
-                    px: 4,
-                    py: 1.5,
+                    px: 3,
+                    py: 1,
                     borderRadius: 2,
-                    borderColor: 'primary.main',
-                    color: 'primary.main',
-                    fontWeight: 600,
+                    borderColor: '#BDBDBD',
+                    color: '#666',
+                    fontWeight: 500,
+                    textTransform: 'none',
                     '&:hover': {
-                      borderColor: 'primary.dark',
-                      backgroundColor: 'rgba(3, 169, 244, 0.05)',
+                      borderColor: '#999',
+                      bgcolor: 'rgba(0, 0, 0, 0.02)',
                     }
                   }}
                 >
@@ -1140,21 +1293,54 @@ export default function CreateTripPage() {
                   type="submit"
                   variant="contained"
                   disabled={isSubmitting}
-                  startIcon={isSubmitting ? <CircularProgress size={20} /> : <Save />}
+                  startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <Save />}
                   sx={{
-                    px: 4,
-                    py: 1.5,
-                    borderRadius: 2,
-                    background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
+                    px: 3,
+                    py: 1,
+                    borderRadius: '20px',
+                    background: 'linear-gradient(135deg, #66bb6a 0%, #4fc3f7 50%, #ff9800 100%)',
+                    backgroundSize: '200% 200%',
+                    animation: 'gradientMove 8s ease-in-out infinite',
+                    '@keyframes gradientMove': {
+                      '0%, 100%': { backgroundPosition: '0% 50%' },
+                      '50%': { backgroundPosition: '100% 50%' },
+                    },
+                    color: 'white',
                     fontWeight: 600,
+                    fontSize: '15px',
+                    textTransform: 'none',
+                    letterSpacing: '0.5px',
+                    boxShadow: '0 4px 15px rgba(79, 195, 247, 0.3)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    transition: 'all 0.3s ease',
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      width: 0,
+                      height: 0,
+                      borderRadius: '50%',
+                      background: 'rgba(255, 255, 255, 0.2)',
+                      transform: 'translate(-50%, -50%)',
+                      transition: 'width 0.8s ease, height 0.8s ease',
+                    },
                     '&:hover': {
-                      background: 'linear-gradient(135deg, #0288d1 0%, #29b6f6 100%)',
                       transform: 'translateY(-2px)',
-                      boxShadow: '0 8px 16px rgba(3, 169, 244, 0.3)',
+                      boxShadow: '0 6px 20px rgba(79, 195, 247, 0.4)',
+                      '&::before': {
+                        width: '200px',
+                        height: '200px',
+                      },
+                    },
+                    '&:active': {
+                      transform: 'translateY(0)',
                     },
                     '&:disabled': {
-                      background: 'grey.300',
-                      color: 'grey.500',
+                      background: '#bdbdbd',
+                      color: '#666',
+                      animation: 'none',
                     }
                   }}
                 >
@@ -1164,7 +1350,8 @@ export default function CreateTripPage() {
             </Box>
           </CardContent>
         </Card>
-      </Container>
+        </Box>
+      </Box>
     </Box>
   );
 }

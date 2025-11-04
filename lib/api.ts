@@ -282,4 +282,82 @@ export const api = {
     });
     return response;
   },
+
+  // Compras
+  createGeneralPurchase: async (tripId: string, userId: number, purchaseData: { description: string; price: number; currency: string; purchaseDate: string }) => {
+    const token = localStorage.getItem('authToken');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+      'User-Id': userId.toString(),
+    };
+    const response = await fetch(`${API_BASE_URL}/api/purchases/trip/${tripId}/general`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(purchaseData),
+    });
+    return response;
+  },
+
+  createIndividualPurchase: async (tripId: string, userId: number, createdByUserId: number, purchaseData: { description: string; price: number; currency: string; purchaseDate: string }) => {
+    const token = localStorage.getItem('authToken');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+      'User-Id': createdByUserId.toString(),
+    };
+    const response = await fetch(`${API_BASE_URL}/api/purchases/trip/${tripId}/individual/${userId}`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(purchaseData),
+    });
+    return response;
+  },
+
+  getGeneralPurchases: async (tripId: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/purchases/trip/${tripId}/general`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  getIndividualPurchases: async (tripId: string, userId: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/purchases/trip/${tripId}/individual/${userId}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  getAllPurchases: async (tripId: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/purchases/trip/${tripId}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  updateGeneralPurchase: async (tripId: string, purchaseId: string, purchaseData: { description: string; price: number; currency: string; purchaseDate: string }) => {
+    const response = await fetch(`${API_BASE_URL}/api/purchases/trip/${tripId}/general/${purchaseId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(purchaseData),
+    });
+    return response;
+  },
+
+  updateIndividualPurchase: async (tripId: string, userId: number, purchaseId: string, purchaseData: { description: string; price: number; currency: string; purchaseDate: string }) => {
+    const response = await fetch(`${API_BASE_URL}/api/purchases/trip/${tripId}/individual/${userId}/${purchaseId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(purchaseData),
+    });
+    return response;
+  },
+
+  deletePurchase: async (tripId: string, purchaseId: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/purchases/trip/${tripId}/${purchaseId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
 };
