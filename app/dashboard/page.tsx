@@ -292,24 +292,40 @@ export default function DashboardPage() {
         if (response.ok) {
           const tripsData = await response.json();
           
-          // Obtener el número de participantes para cada viaje
+          // Obtener el número de participantes y el origen para cada viaje
           const tripsWithParticipants = await Promise.all(
             tripsData.map(async (trip: Trip) => {
               try {
+                // Obtener participantes
                 const participantsResponse = await fetch(
                   `${API_BASE_URL}/api/trips/${trip.id}/participants?userId=${userId}`,
                 { headers: getAuthHeaders() }
                 );
       
+                let participantCount = trip.participants || 0;
                 if (participantsResponse.ok) {
                   const participantsData = await participantsResponse.json();
                   // La respuesta tiene estructura: { success: true, data: [...], total: 2 }
-                  const participantCount = participantsData.total || participantsData.data?.length || 0;
-                  return { ...trip, participantCount };
+                  participantCount = participantsData.total || participantsData.data?.length || 0;
                 }
-                return { ...trip, participantCount: trip.participants || 0 };
+
+                // Obtener detalles del viaje para obtener el origen si no está presente
+                let origin = trip.origin;
+                if (!origin) {
+                  try {
+                    const detailsResponse = await api.getTripDetails(trip.id.toString(), userId);
+                    if (detailsResponse.ok) {
+                      const detailsData = await detailsResponse.json();
+                      origin = detailsData.origin || null;
+                    }
+                  } catch (detailsErr) {
+                    console.error(`Error al obtener detalles del viaje ${trip.id}:`, detailsErr);
+                  }
+                }
+
+                return { ...trip, participantCount, origin: origin || trip.origin };
               } catch (err) {
-                console.error(`Error al obtener participantes del viaje ${trip.id}:`, err);
+                console.error(`Error al obtener datos del viaje ${trip.id}:`, err);
                 return { ...trip, participantCount: trip.participants || 0 };
               }
             })
@@ -1195,7 +1211,7 @@ export default function DashboardPage() {
                           right: 0,
                           bottom: 0,
                           background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.5) 100%)',
-                          backdropFilter: 'blur(2px)',
+                          backdropFilter: 'blur(6px)',
                           zIndex: 0,
                         } : {},
                         '&:hover': {
@@ -1242,9 +1258,6 @@ export default function DashboardPage() {
                             sx={{ fontWeight: 600, color: pastelColor.text, overflow: 'hidden', textOverflow: 'ellipsis' }}
                           >
                               {trip.name}
-                            </Typography>
-                          <Typography variant="caption" sx={{ color: pastelColor.text, opacity: 0.7 }}>
-                              {trip.destination}
                             </Typography>
                           {viewMode === 'gallery' && (
                             <Typography variant="caption" sx={{ color: pastelColor.text, opacity: 0.6, mt: 0.5 }}>
@@ -1388,6 +1401,7 @@ export default function DashboardPage() {
                               right: 0,
                               bottom: 0,
                               background: 'linear-gradient(to right, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.5) 100%)',
+                              backdropFilter: 'blur(6px)',
                               zIndex: 0,
                             } : {},
                             '&:hover': {
@@ -1433,9 +1447,6 @@ export default function DashboardPage() {
                                 sx={{ fontWeight: 600, color: pastelColor.text, mb: 0.5 }}
                               >
                                 {trip.name}
-                              </Typography>
-                              <Typography variant="body2" sx={{ color: pastelColor.text, opacity: 0.7, mb: 1 }}>
-                                {trip.destination}
                               </Typography>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
                                 <Chip
