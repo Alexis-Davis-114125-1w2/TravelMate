@@ -48,6 +48,10 @@ import {
   SpeedDial,
   SpeedDialAction,
   SpeedDialIcon,
+  FormControl,
+  FormControlLabel,
+  RadioGroup,
+  Radio,
 } from '@mui/material';
 import {
   ArrowBack,
@@ -91,6 +95,9 @@ import {
   ExpandLess,
   Clear,
   Delete,
+  AccountBalanceWallet,
+  Wallet,
+  Save,
 } from '@mui/icons-material';
 
 interface TripDetails {
@@ -191,6 +198,15 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [isNavigatingToTip, setIsNavigatingToTip] = useState(false);
   const [currentTipDestination, setCurrentTipDestination] = useState<any>(null);
   const [originalDestination, setOriginalDestination] = useState<any>(null);
+
+  // Estados para billeteras
+  const [generalWallet, setGeneralWallet] = useState<any>(null);
+  const [individualWallet, setIndividualWallet] = useState<any>(null);
+  const [loadingWallets, setLoadingWallets] = useState(false);
+  const [openEditGeneralWallet, setOpenEditGeneralWallet] = useState(false);
+  const [openEditIndividualWallet, setOpenEditIndividualWallet] = useState(false);
+  const [editWalletAmount, setEditWalletAmount] = useState('');
+  const [editWalletCurrency, setEditWalletCurrency] = useState<'PESOS' | 'DOLARES' | 'EUROS'>('PESOS');
 
   // Debug: Log cuando cambien los tips
   useEffect(() => {
@@ -331,6 +347,9 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
           }
         }
         
+        // Cargar billeteras
+        loadWallets(tripId, userId);
+        
       } catch (err) {
         console.error('Error al cargar datos del viaje:', err);
         setError('Error al cargar los datos del viaje');
@@ -470,6 +489,108 @@ const isUserAdmin = trip &&
     } catch (error) {
       console.error(error);
       toast.error('Error de conexión');
+    }
+  };
+
+  // 💰 Cargar billeteras
+  const loadWallets = async (tripId: string, userId: number) => {
+    try {
+      setLoadingWallets(true);
+      
+      // Cargar billetera general
+      const generalResponse = await api.getGeneralWallet(tripId);
+      if (generalResponse.ok) {
+        const generalData = await generalResponse.json();
+        setGeneralWallet(generalData.data);
+      }
+      
+      // Cargar billetera individual del usuario
+      const individualResponse = await api.getIndividualWallet(tripId, userId);
+      if (individualResponse.ok) {
+        const individualData = await individualResponse.json();
+        setIndividualWallet(individualData.data);
+      }
+    } catch (error) {
+      console.error('Error cargando billeteras:', error);
+    } finally {
+      setLoadingWallets(false);
+    }
+  };
+
+  // 💰 Actualizar billetera general
+  const handleUpdateGeneralWallet = async () => {
+    if (!trip?.id || !editWalletAmount) {
+      toast.error('Por favor, ingresa un monto válido');
+      return;
+    }
+
+    try {
+      const response = await api.updateGeneralWallet(trip.id.toString(), {
+        amount: parseFloat(editWalletAmount),
+        currency: editWalletCurrency
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setGeneralWallet(result.data);
+        setOpenEditGeneralWallet(false);
+        setEditWalletAmount('');
+        toast.success('Billetera general actualizada exitosamente');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Error al actualizar billetera general');
+      }
+    } catch (error) {
+      console.error('Error actualizando billetera general:', error);
+      toast.error('Error de conexión');
+    }
+  };
+
+  // 💰 Actualizar billetera individual
+  const handleUpdateIndividualWallet = async () => {
+    if (!trip?.id || !user?.id || !editWalletAmount) {
+      toast.error('Por favor, ingresa un monto válido');
+      return;
+    }
+
+    try {
+      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+      const response = await api.updateIndividualWallet(trip.id.toString(), userId, {
+        amount: parseFloat(editWalletAmount),
+        currency: editWalletCurrency
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setIndividualWallet(result.data);
+        setOpenEditIndividualWallet(false);
+        setEditWalletAmount('');
+        toast.success('Billetera individual actualizada exitosamente');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Error al actualizar billetera individual');
+      }
+    } catch (error) {
+      console.error('Error actualizando billetera individual:', error);
+      toast.error('Error de conexión');
+    }
+  };
+
+  // 💰 Abrir diálogo de edición de billetera general
+  const handleOpenEditGeneralWallet = () => {
+    if (generalWallet) {
+      setEditWalletAmount(generalWallet.amount.toString());
+      setEditWalletCurrency(generalWallet.currency);
+      setOpenEditGeneralWallet(true);
+    }
+  };
+
+  // 💰 Abrir diálogo de edición de billetera individual
+  const handleOpenEditIndividualWallet = () => {
+    if (individualWallet) {
+      setEditWalletAmount(individualWallet.amount.toString());
+      setEditWalletCurrency(individualWallet.currency);
+      setOpenEditIndividualWallet(true);
     }
   };
 
@@ -2470,6 +2591,99 @@ const isUserAdmin = trip &&
                     )}
                   </Paper>
                 )}
+
+                {/* Sección de Billeteras */}
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
+                    Billeteras
+                  </Typography>
+
+                  {/* Billetera General */}
+                  {loadingWallets ? (
+                    <Box display="flex" justifyContent="center" py={2}>
+                      <CircularProgress size={24} />
+                    </Box>
+                  ) : (
+                    <>
+                      {generalWallet && (
+                        <Card sx={{ mb: 2, background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)', color: 'white' }}>
+                          <CardContent sx={{ p: 2 }}>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                              <Box>
+                                <Box display="flex" alignItems="center" gap={1} mb={1}>
+                                  <AccountBalanceWallet sx={{ fontSize: 24 }} />
+                                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                                    Billetera General
+                                  </Typography>
+                                </Box>
+                                <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 0.5 }}>
+                                  {generalWallet.currencySymbol || '$'} {generalWallet.amount?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                                  {generalWallet.currency === 'PESOS' ? 'Pesos Argentinos' : 
+                                   generalWallet.currency === 'DOLARES' ? 'Dólares Estadounidenses' : 
+                                   'Euros'}
+                                </Typography>
+                              </Box>
+                              {isUserAdmin && (
+                                <IconButton
+                                  onClick={handleOpenEditGeneralWallet}
+                                  sx={{
+                                    bgcolor: 'rgba(255, 255, 255, 0.2)',
+                                    color: 'white',
+                                    '&:hover': {
+                                      bgcolor: 'rgba(255, 255, 255, 0.3)',
+                                    }
+                                  }}
+                                >
+                                  <Edit />
+                                </IconButton>
+                              )}
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* Billetera Individual */}
+                      {individualWallet && (
+                        <Card sx={{ background: 'linear-gradient(135deg, #4caf50 0%, #8bc34a 100%)', color: 'white' }}>
+                          <CardContent sx={{ p: 2 }}>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                              <Box>
+                                <Box display="flex" alignItems="center" gap={1} mb={1}>
+                                  <Wallet sx={{ fontSize: 24 }} />
+                                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                                    Mi Billetera
+                                  </Typography>
+                                </Box>
+                                <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 0.5 }}>
+                                  {individualWallet.currencySymbol || '$'} {individualWallet.amount?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                                  {individualWallet.currency === 'PESOS' ? 'Pesos Argentinos' : 
+                                   individualWallet.currency === 'DOLARES' ? 'Dólares Estadounidenses' : 
+                                   'Euros'}
+                                </Typography>
+                              </Box>
+                              <IconButton
+                                onClick={handleOpenEditIndividualWallet}
+                                sx={{
+                                  bgcolor: 'rgba(255, 255, 255, 0.2)',
+                                  color: 'white',
+                                  '&:hover': {
+                                    bgcolor: 'rgba(255, 255, 255, 0.3)',
+                                  }
+                                }}
+                              >
+                                <Edit />
+                              </IconButton>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </>
+                  )}
+                </Box>
               </CardContent>
             </Card>
           </Box>
@@ -3588,6 +3802,190 @@ const isUserAdmin = trip &&
         <DialogActions sx={{ p: 3 }}>
           <Button onClick={() => setOpenShareDialog(false)}>
             Cerrar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog para editar billetera general */}
+      <Dialog open={openEditGeneralWallet} onClose={() => setOpenEditGeneralWallet(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Editar Billetera General</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Monto"
+              type="number"
+              value={editWalletAmount}
+              onChange={(e) => setEditWalletAmount(e.target.value)}
+              placeholder="0.00"
+              inputProps={{ min: 0, step: 0.01 }}
+              sx={{ mb: 3 }}
+            />
+            <FormControl fullWidth>
+              <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', fontWeight: 500 }}>
+                Moneda
+              </Typography>
+              <RadioGroup
+                value={editWalletCurrency}
+                onChange={(e) => setEditWalletCurrency(e.target.value as 'PESOS' | 'DOLARES' | 'EUROS')}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  gap: 1,
+                  '& .MuiFormControlLabel-root': {
+                    margin: 0,
+                    padding: 1.5,
+                    borderRadius: 2,
+                    border: '2px solid transparent',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(3, 169, 244, 0.05)',
+                      borderColor: 'primary.light',
+                    },
+                    '&.Mui-checked': {
+                      backgroundColor: 'rgba(3, 169, 244, 0.1)',
+                      borderColor: 'primary.main',
+                    }
+                  }
+                }}
+              >
+                <FormControlLabel
+                  value="PESOS"
+                  control={<Radio size="small" />}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>$</Typography>
+                      <Typography variant="body2">Pesos</Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel
+                  value="DOLARES"
+                  control={<Radio size="small" />}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>US$</Typography>
+                      <Typography variant="body2">Dólares</Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel
+                  value="EUROS"
+                  control={<Radio size="small" />}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>€</Typography>
+                      <Typography variant="body2">Euros</Typography>
+                    </Box>
+                  }
+                />
+              </RadioGroup>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setOpenEditGeneralWallet(false)}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Save />}
+            onClick={handleUpdateGeneralWallet}
+            disabled={!editWalletAmount || parseFloat(editWalletAmount) < 0}
+          >
+            Guardar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog para editar billetera individual */}
+      <Dialog open={openEditIndividualWallet} onClose={() => setOpenEditIndividualWallet(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Editar Mi Billetera</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Monto"
+              type="number"
+              value={editWalletAmount}
+              onChange={(e) => setEditWalletAmount(e.target.value)}
+              placeholder="0.00"
+              inputProps={{ min: 0, step: 0.01 }}
+              sx={{ mb: 3 }}
+            />
+            <FormControl fullWidth>
+              <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', fontWeight: 500 }}>
+                Moneda
+              </Typography>
+              <RadioGroup
+                value={editWalletCurrency}
+                onChange={(e) => setEditWalletCurrency(e.target.value as 'PESOS' | 'DOLARES' | 'EUROS')}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  gap: 1,
+                  '& .MuiFormControlLabel-root': {
+                    margin: 0,
+                    padding: 1.5,
+                    borderRadius: 2,
+                    border: '2px solid transparent',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(3, 169, 244, 0.05)',
+                      borderColor: 'primary.light',
+                    },
+                    '&.Mui-checked': {
+                      backgroundColor: 'rgba(3, 169, 244, 0.1)',
+                      borderColor: 'primary.main',
+                    }
+                  }
+                }}
+              >
+                <FormControlLabel
+                  value="PESOS"
+                  control={<Radio size="small" />}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>$</Typography>
+                      <Typography variant="body2">Pesos</Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel
+                  value="DOLARES"
+                  control={<Radio size="small" />}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>US$</Typography>
+                      <Typography variant="body2">Dólares</Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel
+                  value="EUROS"
+                  control={<Radio size="small" />}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>€</Typography>
+                      <Typography variant="body2">Euros</Typography>
+                    </Box>
+                  }
+                />
+              </RadioGroup>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setOpenEditIndividualWallet(false)}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Save />}
+            onClick={handleUpdateIndividualWallet}
+            disabled={!editWalletAmount || parseFloat(editWalletAmount) < 0}
+          >
+            Guardar
           </Button>
         </DialogActions>
       </Dialog>

@@ -249,4 +249,37 @@ export const api = {
     });
     return response;
   },
+
+  // Billeteras
+  getGeneralWallet: async (tripId: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/wallets/trip/${tripId}/general`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  getIndividualWallet: async (tripId: string, userId: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/wallets/trip/${tripId}/individual/${userId}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  updateGeneralWallet: async (tripId: string, walletData: { amount: number; currency: string }) => {
+    const response = await fetch(`${API_BASE_URL}/api/wallets/trip/${tripId}/general`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(walletData),
+    });
+    return response;
+  },
+
+  updateIndividualWallet: async (tripId: string, userId: number, walletData: { amount: number; currency: string }) => {
+    const response = await fetch(`${API_BASE_URL}/api/wallets/trip/${tripId}/individual/${userId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(walletData),
+    });
+    return response;
+  },
 };

@@ -64,6 +64,7 @@ export default function CreateTripPage() {
   const [dateI, setDateI] = useState('');
   const [dateF, setDateF] = useState('');
   const [cost, setCost] = useState('');
+  const [currency, setCurrency] = useState<'PESOS' | 'DOLARES' | 'EUROS'>('PESOS');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [selectedIcon, setSelectedIcon] = useState('sun');
   const [selectedVehicle, setSelectedVehicle] = useState('auto');
@@ -406,6 +407,7 @@ export default function CreateTripPage() {
         dateF: dateF,  // Cambiado de date_f a dateF
         description: description || null,
         cost: cost ? parseFloat(cost) : 0,
+        currency: currency,  // Agregar moneda
         vehicle: selectedVehicle,
         image: selectedIcon,
         status: 'planning',
@@ -777,23 +779,93 @@ export default function CreateTripPage() {
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
                   Presupuesto
                 </Typography>
-                <TextField
-                  fullWidth
-                  label="Presupuesto aproximado"
-                  type="number"
-                  value={cost}
-                  onChange={(e) => setCost(e.target.value)}
-                  placeholder="0.00"
-                  inputProps={{ min: 0, step: 0.01 }}
-                  InputProps={{
-                    startAdornment: <Typography sx={{ mr: 1, color: 'primary.main', fontWeight: 600 }}>$</Typography>,
-                  }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                    }
-                  }}
-                />
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
+                    <TextField
+                      fullWidth
+                      label="Presupuesto aproximado"
+                      type="number"
+                      value={cost}
+                      onChange={(e) => setCost(e.target.value)}
+                      placeholder="0.00"
+                      inputProps={{ min: 0, step: 0.01 }}
+                      InputProps={{
+                        startAdornment: (
+                          <Typography sx={{ mr: 1, color: 'primary.main', fontWeight: 600 }}>
+                            {currency === 'PESOS' ? '$' : currency === 'DOLARES' ? 'US$' : '€'}
+                          </Typography>
+                        ),
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                        }
+                      }}
+                    />
+                  </Box>
+                  <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
+                    <FormControl fullWidth>
+                      <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', fontWeight: 500 }}>
+                        Moneda
+                      </Typography>
+                      <RadioGroup
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value as 'PESOS' | 'DOLARES' | 'EUROS')}
+                        sx={{
+                          display: 'flex',
+                          flexDirection: 'row',
+                          gap: 1,
+                          '& .MuiFormControlLabel-root': {
+                            margin: 0,
+                            padding: 1.5,
+                            borderRadius: 2,
+                            border: '2px solid transparent',
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                              backgroundColor: 'rgba(3, 169, 244, 0.05)',
+                              borderColor: 'primary.light',
+                            },
+                            '&.Mui-checked': {
+                              backgroundColor: 'rgba(3, 169, 244, 0.1)',
+                              borderColor: 'primary.main',
+                            }
+                          }
+                        }}
+                      >
+                        <FormControlLabel
+                          value="PESOS"
+                          control={<Radio size="small" />}
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>$</Typography>
+                              <Typography variant="body2">Pesos</Typography>
+                            </Box>
+                          }
+                        />
+                        <FormControlLabel
+                          value="DOLARES"
+                          control={<Radio size="small" />}
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>US$</Typography>
+                              <Typography variant="body2">Dólares</Typography>
+                            </Box>
+                          }
+                        />
+                        <FormControlLabel
+                          value="EUROS"
+                          control={<Radio size="small" />}
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>€</Typography>
+                              <Typography variant="body2">Euros</Typography>
+                            </Box>
+                          }
+                        />
+                      </RadioGroup>
+                    </FormControl>
+                  </Box>
+                </Box>
               </Box>
 
               {/* Selector de vehículo */}
