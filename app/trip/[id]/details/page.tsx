@@ -161,6 +161,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
   const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(false);
   
   // Estados para mapas
@@ -317,6 +318,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
       try {
         setLoading(true);
         setError(null);
+        setHasAttemptedLoad(true);
         
         const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
         
@@ -387,13 +389,13 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
         
       } catch (err) {
         console.error('Error al cargar datos del viaje:', err);
-        setError('Error al cargar los datos del viaje');
+        setError(err instanceof Error ? err.message : 'Error al cargar los datos del viaje');
       } finally {
         setLoading(false);
       }
     };
 
-    if (isAuthenticated && user) {
+    if (isAuthenticated && user && tripId) {
       fetchTripData();
     }
   }, [user, isAuthenticated, tripId]);
@@ -1222,8 +1224,47 @@ const isUserAdmin = trip &&
 
   // Función para iniciar navegación en tiempo real
   const startNavigation = () => {
-    if (!trip || !currentLocation || !directionsService || !directionsRenderer) {
-      toast.error('No se puede iniciar la navegación. Verifica tu ubicación y la conexión.');
+    if (!trip || !directionsService || !directionsRenderer) {
+      toast.error('No se puede iniciar la navegación. Verifica tu conexión.');
+      return;
+    }
+
+    // Si no hay ubicación actual, obtenerla primero
+    if (!currentLocation) {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const location = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            };
+            setCurrentLocation(location);
+            // Iniciar navegación después de obtener la ubicación
+            startNavigationWithLocation(location);
+          },
+          (error) => {
+            console.error('Error obteniendo ubicación:', error);
+            toast.error('No se pudo obtener tu ubicación. Verifica los permisos de geolocalización.');
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          }
+        );
+      } else {
+        toast.error('Tu navegador no soporta geolocalización.');
+      }
+      return;
+    }
+
+    // Si ya tenemos ubicación, iniciar navegación directamente
+    startNavigationWithLocation(currentLocation);
+  };
+
+  // Función auxiliar para iniciar navegación con ubicación
+  const startNavigationWithLocation = (location: {lat: number, lng: number}) => {
+    if (!trip || !location || !directionsService || !directionsRenderer || !map) {
       return;
     }
 
@@ -1231,7 +1272,7 @@ const isUserAdmin = trip &&
     setCurrentStep(0);
     
     // Para navegación, usar ubicación actual como origen
-    const origin = currentLocation;
+    const origin = location;
     const destination = { 
       lat: trip.destinationLatitude!, 
       lng: trip.destinationLongitude! 
@@ -1317,17 +1358,52 @@ const isUserAdmin = trip &&
         initializeChat();
         
         // Ajustar vista para navegación con zoom cercano a la ubicación actual
-        if (currentLocation) {
-          applyZoomToLocation(currentLocation, 'inicio de navegación');
+        if (location && map) {
+          // Hacer zoom inmediato a la ubicación actual
+          const zoomLevel = trip?.vehicle === 'auto' ? 16 : 18;
+          
+          // Aplicar zoom inmediatamente
+          map.setCenter(location);
+          map.setZoom(zoomLevel);
+          setMapZoom(zoomLevel);
+          
+          // Asegurar que el zoom se mantenga con múltiples intentos
+          setTimeout(() => {
+            if (map && location) {
+              map.setCenter(location);
+              map.setZoom(zoomLevel);
+              console.log('📍 Zoom aplicado (intento 1):', location, 'zoom:', zoomLevel);
+            }
+          }, 100);
+          
+          setTimeout(() => {
+            if (map && location) {
+              map.setCenter(location);
+              map.setZoom(zoomLevel);
+              console.log('📍 Zoom aplicado (intento 2):', location, 'zoom:', zoomLevel);
+            }
+          }, 500);
+          
+          setTimeout(() => {
+            if (map && location) {
+              map.setCenter(location);
+              map.setZoom(zoomLevel);
+              console.log('📍 Zoom aplicado (intento 3):', location, 'zoom:', zoomLevel);
+            }
+          }, 1000);
+          
+          console.log('📍 Zoom inicial aplicado a ubicación actual:', location, 'zoom:', zoomLevel);
         } else {
-          console.log('⚠️ No hay ubicación actual, usando fallback');
+          console.log('⚠️ No hay ubicación actual o mapa, usando fallback');
           // Fallback: ajustar vista a la ruta completa
-          const bounds = new window.google.maps.LatLngBounds();
-          route.legs.forEach((leg: any) => {
-            bounds.extend(leg.start_location);
-            bounds.extend(leg.end_location);
-          });
-          map.fitBounds(bounds);
+          if (map) {
+            const bounds = new window.google.maps.LatLngBounds();
+            route.legs.forEach((leg: any) => {
+              bounds.extend(leg.start_location);
+              bounds.extend(leg.end_location);
+            });
+            map.fitBounds(bounds);
+          }
         }
         
         toast.success('🚗 Navegación iniciada. ¡Buen viaje!');
@@ -2422,11 +2498,46 @@ const isUserAdmin = trip &&
   }, [startTripToTip, continueMainTrip]);
 
   // Función para limpiar tips
-  const clearTips = () => {
-    setTips([]);
-    tipPins.forEach(pin => pin.setMap(null));
-    setTipPins([]);
-    setShowTipsList(false);
+  const clearTips = async () => {
+    if (!trip?.id || tips.length === 0) {
+      setTips([]);
+      tipPins.forEach(pin => pin.setMap(null));
+      setTipPins([]);
+      setShowTipsList(false);
+      return;
+    }
+
+    try {
+      // Eliminar todos los tips de la base de datos
+      const deletePromises = tips.map(tip => {
+        if (tip.id) {
+          return deleteTipFromDatabase(tip.id.toString());
+        }
+        return Promise.resolve(true);
+      });
+
+      const results = await Promise.all(deletePromises);
+      const successCount = results.filter(r => r === true).length;
+      
+      console.log(`✅ ${successCount} tips eliminados de la base de datos`);
+
+      // Limpiar del estado local
+      setTips([]);
+      tipPins.forEach(pin => pin.setMap(null));
+      setTipPins([]);
+      setShowTipsList(false);
+      
+      toast.success(`Se eliminaron ${successCount} tips`);
+    } catch (error) {
+      console.error('❌ Error eliminando tips:', error);
+      toast.error('Error al eliminar algunos tips');
+      
+      // Limpiar del estado local de todos modos
+      setTips([]);
+      tipPins.forEach(pin => pin.setMap(null));
+      setTipPins([]);
+      setShowTipsList(false);
+    }
   };
 
   // Función para guardar tip en la base de datos
@@ -2632,7 +2743,7 @@ const isUserAdmin = trip &&
     { icon: <Share />, name: 'Compartir', action: () => setOpenShareDialog(true) },
   ];
 
-  if (isLoading) {
+  if (isLoading || loading || (!trip && !hasAttemptedLoad)) {
     return (
       <Backdrop open={true} sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
@@ -2647,26 +2758,25 @@ const isUserAdmin = trip &&
     return null;
   }
 
-  if (!trip) {
+  if (!trip && hasAttemptedLoad && !loading) {
     return (
-      <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
-        <AppBar position="static" elevation={0} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
-          <Toolbar>
+      <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: '#FAFAFA' }}>
+        <AppBar position="static" elevation={0} sx={{ bgcolor: '#E3F2FD', color: '#424242', borderBottom: '1px solid #BBDEFB' }}>
+          <Toolbar sx={{ px: 3, py: 1.5 }}>
             <IconButton
               edge="start"
-              color="inherit"
               onClick={() => router.back()}
-              sx={{ mr: 2 }}
+              sx={{ mr: 2, color: '#666' }}
             >
               <ArrowBack />
             </IconButton>
-            <Typography variant="h6" component="h1" sx={{ fontWeight: 600 }}>
+            <Typography variant="h6" component="h1" sx={{ fontWeight: 600, color: '#424242' }}>
               Viaje no encontrado
             </Typography>
           </Toolbar>
         </AppBar>
         <Container maxWidth="md" sx={{ py: 6, textAlign: 'center' }}>
-          <Alert severity="error">
+          <Alert severity="error" sx={{ borderRadius: 2 }}>
             No se pudo cargar la información del viaje. Verifica que tengas acceso a este viaje.
           </Alert>
         </Container>
@@ -2675,93 +2785,107 @@ const isUserAdmin = trip &&
   }
 
   return (
-    <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
+    <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: '#FAFAFA' }}>
       {/* App Bar */}
-      <AppBar position="static" elevation={0} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
-        <Toolbar>
+      <AppBar position="static" elevation={0} sx={{ bgcolor: '#E3F2FD', color: '#424242', borderBottom: '1px solid #BBDEFB' }}>
+        <Toolbar sx={{ px: 3, py: 1.5 }}>
           <IconButton
             edge="start"
-            color="inherit"
             onClick={() => router.back()}
-            sx={{ mr: 2 }}
+            sx={{ mr: 2, color: '#666' }}
           >
             <ArrowBack />
           </IconButton>
-          <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+          <Avatar sx={{ bgcolor: '#1976D2', mr: 2, width: 40, height: 40 }}>
             {getIcon(trip.image || 'default')}
           </Avatar>
           <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="h6" component="h1" sx={{ fontWeight: 600 }}>
+            <Typography variant="h6" component="h1" sx={{ fontWeight: 600, color: '#424242' }}>
               {trip.name}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{ color: '#666' }}>
               {trip.destination}
             </Typography>
           </Box>
           <Chip
             label={getStatusLabel(trip.status)}
-            color={getStatusColor(trip.status) as any}
             size="small"
-            sx={{ fontWeight: 600 }}
+            sx={{ 
+              fontWeight: 500,
+              bgcolor: trip.status?.toLowerCase() === 'completed' ? '#C8E6C9' :
+                      trip.status?.toLowerCase() === 'planning' ? '#BBDEFB' :
+                      trip.status?.toLowerCase() === 'active' ? '#FFE0B2' : '#F5F5F5',
+              color: trip.status?.toLowerCase() === 'completed' ? '#2E7D32' :
+                     trip.status?.toLowerCase() === 'planning' ? '#1565C0' :
+                     trip.status?.toLowerCase() === 'active' ? '#E65100' : '#616161',
+            }}
           />
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Container maxWidth="xl" sx={{ py: 3 }}>
         {/* Error Alert */}
         {error && (
-          <Alert severity="error" sx={{ mb: 4 }} onClose={() => setError(null)}>
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setError(null)}>
             {error}
           </Alert>
         )}
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {/* Información del Viaje */}
-          <Box sx={{ flex: '1 1 400px', minWidth: 400 }}>
-            <Card sx={{ mb: 4 }}>
-              <CardContent sx={{ p: 4 }}>
-                <Box display="flex" alignItems="center" gap={3} mb={3}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+          {/* Información del Viaje y Billeteras */}
+          <Box sx={{ flex: '1 1 500px', minWidth: 400 }}>
+            <Card sx={{ mb: 3, boxShadow: 'none', border: '1px solid #E0E0E0', borderRadius: 2 }}>
+              <CardContent sx={{ p: 3 }}>
+                <Box display="flex" alignItems="center" gap={2} mb={2}>
                   <Avatar sx={{ 
-                    bgcolor: 'primary.main', 
-                    width: 80, 
-                    height: 80 
+                    bgcolor: '#E3F2FD', 
+                    width: 60, 
+                    height: 60,
+                    color: '#1976D2'
                   }}>
                     {getIcon(trip.image || 'default')}
                   </Avatar>
                   <Box sx={{ flexGrow: 1 }}>
-                    <Typography variant="h4" component="h2" sx={{ fontWeight: 700, mb: 1 }}>
+                    <Typography variant="h5" component="h2" sx={{ fontWeight: 600, mb: 0.5, color: '#424242' }}>
                       {trip.name}
                     </Typography>
-                    <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+                    <Typography variant="body1" sx={{ color: '#666', mb: 1 }}>
                       {trip.destination}
                     </Typography>
                     <Chip
                       label={getStatusLabel(trip.status)}
-                      color={getStatusColor(trip.status) as any}
-                      size="medium"
-                      sx={{ fontWeight: 600 }}
+                      size="small"
+                      sx={{ 
+                        fontWeight: 500,
+                        bgcolor: trip.status?.toLowerCase() === 'completed' ? '#C8E6C9' :
+                                trip.status?.toLowerCase() === 'planning' ? '#BBDEFB' :
+                                trip.status?.toLowerCase() === 'active' ? '#FFE0B2' : '#F5F5F5',
+                        color: trip.status?.toLowerCase() === 'completed' ? '#2E7D32' :
+                               trip.status?.toLowerCase() === 'planning' ? '#1565C0' :
+                               trip.status?.toLowerCase() === 'active' ? '#E65100' : '#616161',
+                      }}
                     />
                   </Box>
                 </Box>
 
                 {trip.description && (
-                  <Typography variant="body1" sx={{ mb: 3, color: 'text.secondary' }}>
+                  <Typography variant="body2" sx={{ mb: 2, color: '#666' }}>
                     {trip.description}
                   </Typography>
                 )}
 
                 {/* Detalles del viaje */}
-                <Box sx={{ mb: 3 }}>
-                  <Box display="flex" alignItems="center" gap={2} mb={2}>
-                    <Schedule sx={{ color: 'primary.main' }} />
-                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Schedule sx={{ color: '#666', fontSize: 18 }} />
+                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#424242' }}>
                       {formatDate(trip.dateI)} - {formatDate(trip.dateF)}
                     </Typography>
                   </Box>
 
-                  <Box display="flex" alignItems="center" gap={2} mb={2}>
+                  <Box display="flex" alignItems="center" gap={1}>
                     {getVehicleIcon(trip.vehicle)}
-                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#424242' }}>
                       {trip.vehicle === 'auto' ? 'En auto' : 
                        trip.vehicle === 'avion' ? 'En avión' : 
                        trip.vehicle === 'caminando' ? 'Caminando' : 'En auto'}
@@ -2769,8 +2893,8 @@ const isUserAdmin = trip &&
                   </Box>
 
                   {trip.cost > 0 && (
-                    <Box display="flex" alignItems="center" gap={2}>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" sx={{ fontWeight: 500, color: '#424242' }}>
                         Presupuesto: ${trip.cost.toLocaleString()}
                       </Typography>
                     </Box>
@@ -2779,30 +2903,30 @@ const isUserAdmin = trip &&
 
                 {/* Código de invitación */}
                 {trip.joinCode && (
-                  <Paper sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 600 }}>
+                  <Paper sx={{ p: 1.5, bgcolor: '#E8F5E9', borderRadius: 2, border: '1px solid #C8E6C9', mb: 2 }}>
+                    <Typography variant="caption" sx={{ display: 'block', mb: 0.5, fontWeight: 600, color: '#2E7D32' }}>
                       Código de Invitación
                     </Typography>
                     <Box display="flex" alignItems="center" gap={1}>
-                      <Typography variant="h6" sx={{ fontWeight: 700, fontFamily: 'monospace', letterSpacing: 1 }}>
+                      <Typography variant="body1" sx={{ fontWeight: 700, fontFamily: 'monospace', letterSpacing: 1, color: '#424242' }}>
                         {trip.joinCode}
                       </Typography>
                       <IconButton 
                         size="small" 
                         onClick={() => handleCopyJoinCode(trip.joinCode!)}
                         sx={{ 
-                          bgcolor: copiedCode === trip.joinCode ? 'success.main' : 'transparent',
-                          color: copiedCode === trip.joinCode ? 'white' : 'inherit',
+                          bgcolor: copiedCode === trip.joinCode ? '#4CAF50' : 'transparent',
+                          color: copiedCode === trip.joinCode ? 'white' : '#666',
                           '&:hover': {
-                            bgcolor: copiedCode === trip.joinCode ? 'success.dark' : 'action.hover',
+                            bgcolor: copiedCode === trip.joinCode ? '#388E3C' : '#F5F5F5',
                           }
                         }}
                       >
-                        {copiedCode === trip.joinCode ? <CheckCircle sx={{ fontSize: 18 }} /> : <ContentCopy sx={{ fontSize: 18 }} />}
+                        {copiedCode === trip.joinCode ? <CheckCircle sx={{ fontSize: 16 }} /> : <ContentCopy sx={{ fontSize: 16 }} />}
                       </IconButton>
                     </Box>
                     {copiedCode === trip.joinCode && (
-                      <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
+                      <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: '#4CAF50' }}>
                         ¡Código copiado!
                       </Typography>
                     )}
@@ -2810,19 +2934,23 @@ const isUserAdmin = trip &&
                 )}
 
                 {/* Sección de Billeteras y Gastos */}
-                <Box sx={{ mt: 3 }}>
+                <Box sx={{ mt: 2 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
                       Billeteras y Gastos
                     </Typography>
                     <Button
                       variant="contained"
+                      size="small"
                       startIcon={<Add />}
                       onClick={() => setOpenAddPurchase(true)}
                       sx={{
-                        bgcolor: '#4caf50',
-                        '&:hover': { bgcolor: '#45a049' },
+                        bgcolor: '#4CAF50',
+                        '&:hover': { bgcolor: '#388E3C' },
                         textTransform: 'none',
+                        borderRadius: 2,
+                        px: 2,
+                        py: 0.5,
                       }}
                     >
                       Agregar Compra
@@ -2837,20 +2965,20 @@ const isUserAdmin = trip &&
                   ) : (
                     <>
                       {generalWallet && (
-                        <Card sx={{ mb: 2, background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)', color: 'white' }}>
-                          <CardContent sx={{ p: 2 }}>
+                        <Paper sx={{ mb: 2, bgcolor: '#E3F2FD', borderRadius: 2, border: '1px solid #BBDEFB', boxShadow: 'none' }}>
+                          <Box sx={{ p: 2 }}>
                             <Box display="flex" justifyContent="space-between" alignItems="center">
                               <Box>
-                                <Box display="flex" alignItems="center" gap={1} mb={1}>
-                                  <AccountBalanceWallet sx={{ fontSize: 24 }} />
-                                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                                <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                                  <AccountBalanceWallet sx={{ fontSize: 20, color: '#1976D2' }} />
+                                  <Typography variant="body1" sx={{ fontWeight: 600, color: '#1976D2' }}>
                                     Billetera General
                                   </Typography>
                                 </Box>
-                                <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 0.5 }}>
+                                <Typography variant="h5" sx={{ fontWeight: 700, color: '#1976D2', mb: 0.5 }}>
                                   {generalWallet.currencySymbol || '$'} {generalWallet.amount?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                                 </Typography>
-                                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                                <Typography variant="caption" sx={{ color: '#64B5F6' }}>
                                   {generalWallet.currency === 'PESOS' ? 'Pesos Argentinos' : 
                                    generalWallet.currency === 'DOLARES' ? 'Dólares Estadounidenses' : 
                                    'Euros'}
@@ -2858,128 +2986,130 @@ const isUserAdmin = trip &&
                               </Box>
                               {isUserAdmin && (
                                 <IconButton
+                                  size="small"
                                   onClick={handleOpenEditGeneralWallet}
                                   sx={{
-                                    bgcolor: 'rgba(255, 255, 255, 0.2)',
-                                    color: 'white',
+                                    bgcolor: 'rgba(25, 118, 210, 0.1)',
+                                    color: '#1976D2',
                                     '&:hover': {
-                                      bgcolor: 'rgba(255, 255, 255, 0.3)',
+                                      bgcolor: 'rgba(25, 118, 210, 0.2)',
                                     }
                                   }}
                                 >
-                                  <Edit />
+                                  <Edit sx={{ fontSize: 18 }} />
                                 </IconButton>
                               )}
                             </Box>
-                          </CardContent>
-                        </Card>
+                          </Box>
+                        </Paper>
                       )}
 
                       {/* Billetera Individual */}
                       {individualWallet && (
-                        <Card sx={{ background: 'linear-gradient(135deg, #4caf50 0%, #8bc34a 100%)', color: 'white' }}>
-                          <CardContent sx={{ p: 2 }}>
+                        <Paper sx={{ bgcolor: '#E8F5E9', borderRadius: 2, border: '1px solid #C8E6C9', boxShadow: 'none' }}>
+                          <Box sx={{ p: 2 }}>
                             <Box display="flex" justifyContent="space-between" alignItems="center">
                               <Box>
-                                <Box display="flex" alignItems="center" gap={1} mb={1}>
-                                  <Wallet sx={{ fontSize: 24 }} />
-                                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                                <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                                  <Wallet sx={{ fontSize: 20, color: '#2E7D32' }} />
+                                  <Typography variant="body1" sx={{ fontWeight: 600, color: '#2E7D32' }}>
                                     Mi Billetera
                                   </Typography>
                                 </Box>
-                                <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 0.5 }}>
+                                <Typography variant="h5" sx={{ fontWeight: 700, color: '#2E7D32', mb: 0.5 }}>
                                   {individualWallet.currencySymbol || '$'} {individualWallet.amount?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                                 </Typography>
-                                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                                <Typography variant="caption" sx={{ color: '#4CAF50' }}>
                                   {individualWallet.currency === 'PESOS' ? 'Pesos Argentinos' : 
                                    individualWallet.currency === 'DOLARES' ? 'Dólares Estadounidenses' : 
                                    'Euros'}
                                 </Typography>
                               </Box>
                               <IconButton
+                                size="small"
                                 onClick={handleOpenEditIndividualWallet}
                                 sx={{
-                                  bgcolor: 'rgba(255, 255, 255, 0.2)',
-                                  color: 'white',
+                                  bgcolor: 'rgba(46, 125, 50, 0.1)',
+                                  color: '#2E7D32',
                                   '&:hover': {
-                                    bgcolor: 'rgba(255, 255, 255, 0.3)',
+                                    bgcolor: 'rgba(46, 125, 50, 0.2)',
                                   }
                                 }}
                               >
-                                <Edit />
+                                <Edit sx={{ fontSize: 18 }} />
                               </IconButton>
                             </Box>
-                          </CardContent>
-                        </Card>
+                          </Box>
+                        </Paper>
                       )}
                     </>
                   )}
 
                   {/* Sección de Gastos */}
-                  <Box sx={{ mt: 4 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
+                  <Box sx={{ mt: 3 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
                       Gastos
                     </Typography>
 
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
                       {/* Gastos Generales */}
-                      <Card sx={{ background: 'linear-gradient(135deg, #ff9800 0%, #ffb74d 100%)', color: 'white' }}>
-                        <CardContent sx={{ p: 2 }}>
-                          <Box display="flex" alignItems="center" gap={1} mb={2}>
-                            <AccountBalanceWallet sx={{ fontSize: 24 }} />
-                            <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                      <Paper sx={{ bgcolor: '#FFF3E0', borderRadius: 2, border: '1px solid #FFE0B2', boxShadow: 'none' }}>
+                        <Box sx={{ p: 2 }}>
+                          <Box display="flex" alignItems="center" gap={1} mb={1.5}>
+                            <AccountBalanceWallet sx={{ fontSize: 20, color: '#E65100' }} />
+                            <Typography variant="body1" sx={{ fontWeight: 600, color: '#E65100' }}>
                               Gastos Generales
                             </Typography>
                           </Box>
                           {loadingPurchases ? (
-                            <CircularProgress size={24} sx={{ color: 'white' }} />
+                            <CircularProgress size={20} sx={{ color: '#E65100' }} />
                           ) : (
                             <>
-                              <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
+                              <Typography variant="h5" sx={{ fontWeight: 700, color: '#E65100', mb: 0.5 }}>
                                 {generalWallet?.currencySymbol || '$'} {getGeneralExpensesRemainingConverted().toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </Typography>
-                              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)', mb: 1 }}>
+                              <Typography variant="caption" sx={{ color: '#FF9800', mb: 0.5, display: 'block' }}>
                                 Total gastos: {generalWallet?.currencySymbol || '$'} {calculateTotalExpensesConverted(generalPurchases, generalWallet?.currency || 'PESOS').toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </Typography>
-                              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                              <Typography variant="caption" sx={{ color: '#666' }}>
                                 {generalPurchases.length} {generalPurchases.length === 1 ? 'compra' : 'compras'} registradas
                               </Typography>
                             </>
                           )}
-                        </CardContent>
-                      </Card>
+                        </Box>
+                      </Paper>
 
                       {/* Mis Gastos */}
-                      <Card sx={{ background: 'linear-gradient(135deg, #9c27b0 0%, #ba68c8 100%)', color: 'white' }}>
-                        <CardContent sx={{ p: 2 }}>
-                          <Box display="flex" alignItems="center" gap={1} mb={2}>
-                            <Wallet sx={{ fontSize: 24 }} />
-                            <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                      <Paper sx={{ bgcolor: '#F3E5F5', borderRadius: 2, border: '1px solid #E1BEE7', boxShadow: 'none' }}>
+                        <Box sx={{ p: 2 }}>
+                          <Box display="flex" alignItems="center" gap={1} mb={1.5}>
+                            <Wallet sx={{ fontSize: 20, color: '#7B1FA2' }} />
+                            <Typography variant="body1" sx={{ fontWeight: 600, color: '#7B1FA2' }}>
                               Mis Gastos
                             </Typography>
                           </Box>
                           {loadingPurchases ? (
-                            <CircularProgress size={24} sx={{ color: 'white' }} />
+                            <CircularProgress size={20} sx={{ color: '#7B1FA2' }} />
                           ) : (
                             <>
-                              <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
+                              <Typography variant="h5" sx={{ fontWeight: 700, color: '#7B1FA2', mb: 0.5 }}>
                                 {individualWallet?.currencySymbol || '$'} {getIndividualExpensesRemainingConverted().toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </Typography>
-                              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)', mb: 1 }}>
+                              <Typography variant="caption" sx={{ color: '#9C27B0', mb: 0.5, display: 'block' }}>
                                 Total gastos: {individualWallet?.currencySymbol || '$'} {calculateTotalExpensesConverted(individualPurchases, individualWallet?.currency || 'PESOS').toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </Typography>
-                              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                              <Typography variant="caption" sx={{ color: '#666' }}>
                                 {individualPurchases.length} {individualPurchases.length === 1 ? 'compra' : 'compras'} registradas
                               </Typography>
                             </>
                           )}
-                        </CardContent>
-                      </Card>
+                        </Box>
+                      </Paper>
                     </Box>
                   </Box>
 
                   {/* Lista de Compras */}
-                  <Box sx={{ mt: 4 }}>
+                  <Box sx={{ mt: 3 }}>
                     <Accordion 
                       expanded={purchasesExpanded} 
                       onChange={() => setPurchasesExpanded(!purchasesExpanded)}
@@ -2996,16 +3126,20 @@ const isUserAdmin = trip &&
                           bgcolor: '#F5F5F5',
                           borderRadius: 2,
                           '&:hover': { bgcolor: '#EEEEEE' },
+                          minHeight: 48,
+                          '& .MuiAccordionSummary-content': {
+                            my: 1,
+                          }
                         }}
                       >
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
                           <ShoppingCart sx={{ color: '#4CAF50' }} />
-                          <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
+                          <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242' }}>
                             Lista de Compras ({(generalPurchases.length + individualPurchases.length)})
                           </Typography>
                         </Box>
                       </AccordionSummary>
-                      <AccordionDetails sx={{ p: 3 }}>
+                      <AccordionDetails sx={{ p: 2 }}>
                         {/* Filtros */}
                         <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
                           <FilterList sx={{ color: '#666' }} />
@@ -3126,21 +3260,21 @@ const isUserAdmin = trip &&
           </Box>
 
           {/* Mapa */}
-          <Box sx={{ flex: '1 1 400px', minWidth: 400 }}>
-            <Card sx={{ mb: 4 }}>
+          <Box sx={{ flex: '1 1 400px', minWidth: 400, width: '100%' }}>
+            <Card sx={{ mb: 3, boxShadow: 'none', border: '1px solid #E0E0E0', borderRadius: 2 }}>
               <CardContent sx={{ p: 0 }}>
-                <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Box sx={{ p: 2, borderBottom: '1px solid #E0E0E0' }}>
                   <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
                       {isNavigating ? 'Navegación Activa' : 'Ruta del Viaje'}
                     </Typography>
                     {isNavigating ? (
                       <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" color="success.main" sx={{ fontWeight: 600 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#4CAF50' }}>
                           {remainingDistance}
                         </Typography>
                         {remainingTime && (
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" sx={{ color: '#666' }}>
                             • {remainingTime}
                           </Typography>
                         )}
@@ -3148,11 +3282,11 @@ const isUserAdmin = trip &&
                     ) : (
                       routeDistance && (
                       <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976D2' }}>
                           {routeDistance}
                         </Typography>
                         {routeDuration && (
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" sx={{ color: '#666' }}>
                             • {routeDuration}
                           </Typography>
                         )}
@@ -3163,27 +3297,19 @@ const isUserAdmin = trip &&
                   
                   {isNavigating ? (
                     <Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      <Typography variant="body2" sx={{ mb: 1, color: '#666' }}>
                         {trip.origin ? `${trip.origin} → ${trip.destination}` : trip.destination}
                       </Typography>
-                      {nextInstruction && (
-                        <Box display="flex" alignItems="center" gap={1} mt={1}>
-                          <Navigation sx={{ fontSize: 16, color: 'primary.main' }} />
-                          <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
-                            {nextInstruction}
-                          </Typography>
-                        </Box>
-                      )}
                     </Box>
                   ) : (
                     <Box>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ color: '#666' }}>
                     {trip.origin ? `${trip.origin} → ${trip.destination}` : trip.destination}
                   </Typography>
                   {trip.vehicle && (
                     <Box display="flex" alignItems="center" gap={1} mt={1}>
                       {getVehicleIcon(trip.vehicle)}
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{ color: '#666' }}>
                         {trip.vehicle === 'auto' ? 'En auto' : 
                          trip.vehicle === 'avion' ? 'En avión' : 
                          trip.vehicle === 'caminando' ? 'Caminando' : 'En auto'}
@@ -3192,8 +3318,8 @@ const isUserAdmin = trip &&
                   )}
                   {distanceFromCurrent && (
                     <Box display="flex" alignItems="center" gap={1} mt={1}>
-                      <MyLocation sx={{ fontSize: 16, color: 'primary.main' }} />
-                      <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
+                      <MyLocation sx={{ fontSize: 16, color: '#1976D2' }} />
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976D2' }}>
                         Te quedan {distanceFromCurrent} para llegar
                       </Typography>
                         </Box>
@@ -3211,8 +3337,11 @@ const isUserAdmin = trip &&
                           onClick={startNavigation}
                           size="small"
                           sx={{ 
-                            bgcolor: 'success.main',
-                            '&:hover': { bgcolor: 'success.dark' }
+                            bgcolor: '#4CAF50',
+                            '&:hover': { bgcolor: '#388E3C' },
+                            textTransform: 'none',
+                            borderRadius: 2,
+                            px: 2,
                           }}
                         >
                           Iniciar Viaje
@@ -3224,9 +3353,15 @@ const isUserAdmin = trip &&
                             startIcon={<Stop />}
                             onClick={stopNavigation}
                             size="small"
-                            color="error"
+                            sx={{ 
+                              bgcolor: '#F44336',
+                              '&:hover': { bgcolor: '#D32F2F' },
+                              textTransform: 'none',
+                              borderRadius: 2,
+                              px: 2,
+                            }}
                           >
-                            Detener Navegación
+                            Detener
                           </Button>
                           {isNavigatingToTip && (
                             <Button
@@ -3235,8 +3370,11 @@ const isUserAdmin = trip &&
                               onClick={continueMainTrip}
                               size="small"
                               sx={{ 
-                                bgcolor: 'green',
-                                '&:hover': { bgcolor: 'darkgreen' }
+                                bgcolor: '#4CAF50',
+                                '&:hover': { bgcolor: '#388E3C' },
+                                textTransform: 'none',
+                                borderRadius: 2,
+                                px: 2,
                               }}
                             >
                               Continuar viaje
@@ -3581,84 +3719,345 @@ const isUserAdmin = trip &&
                 )}
               </CardContent>
             </Card>
+
+            {/* Navegación y Gemini - Debajo del Mapa */}
+            {isNavigating && navigationSteps.length > 0 && (
+              <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap' }}>
+                {/* Navegación */}
+                <Paper sx={{ 
+                  flex: '1 1 400px',
+                  bgcolor: '#E3F2FD', 
+                  borderRadius: 2, 
+                  border: '1px solid #BBDEFB',
+                  boxShadow: 'none',
+                  p: 2
+                }}>
+                  <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+                    <Navigation sx={{ color: '#1976D2', fontSize: 24 }} />
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: '#1976D2' }}>
+                      Navegación Activa
+                    </Typography>
+                  </Box>
+                  
+                  {/* Instrucción actual destacada */}
+                  {nextInstruction && (
+                    <Box sx={{ 
+                      bgcolor: 'white', 
+                      borderRadius: 2, 
+                      p: 2, 
+                      mb: 2,
+                      border: '1px solid #BBDEFB'
+                    }}>
+                      <Box display="flex" alignItems="center" gap={1.5} mb={1.5}>
+                        {getDirectionIcon(nextInstruction)}
+                        <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242' }}>
+                          {nextInstruction}
+                        </Typography>
+                      </Box>
+                      
+                      <Box display="flex" alignItems="center" gap={3} mb={1}>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Speed sx={{ fontSize: 16, color: '#1976D2' }} />
+                          <Typography variant="body2" sx={{ color: '#424242', fontWeight: 600 }}>
+                            {remainingDistance}
+                          </Typography>
+                        </Box>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <AccessTime sx={{ fontSize: 16, color: '#1976D2' }} />
+                          <Typography variant="body2" sx={{ color: '#424242', fontWeight: 600 }}>
+                            {remainingTime}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Chip
+                          label="ACTUAL"
+                          size="small"
+                          sx={{ 
+                            bgcolor: '#1976D2',
+                            color: 'white',
+                            fontWeight: 600,
+                            fontSize: '0.7rem',
+                            height: 20
+                          }}
+                        />
+                        {isNavigatingToTip && (
+                          <Chip
+                            label={`📍 ${currentTipDestination?.name || 'Tip'}`}
+                            size="small"
+                            sx={{ 
+                              bgcolor: '#FF9800',
+                              color: 'white',
+                              fontWeight: 600,
+                              fontSize: '0.7rem',
+                              height: 20
+                            }}
+                          />
+                        )}
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* Próximas 2 instrucciones */}
+                  {navigationSteps.length > 0 && (
+                    <Box>
+                      <Typography variant="body2" sx={{ color: '#666', mb: 1.5, fontWeight: 600 }}>
+                        Próximas instrucciones:
+                      </Typography>
+                      {navigationSteps.slice(currentStep + 1, currentStep + 3).map((step, index) => (
+                        <Box key={currentStep + 1 + index} sx={{ 
+                          bgcolor: 'white', 
+                          borderRadius: 1.5, 
+                          p: 1.5, 
+                          mb: 1,
+                          border: '1px solid #E0E0E0'
+                        }}>
+                          <Box display="flex" alignItems="center" gap={1.5}>
+                            {getDirectionIcon(step.instructions)}
+                            <Typography variant="body2" sx={{ color: '#424242', fontWeight: 500 }}>
+                              {step.instructions.replace(/<[^>]*>/g, '')}
+                            </Typography>
+                          </Box>
+                          <Box display="flex" alignItems="center" gap={2} mt={0.5}>
+                            <Typography variant="caption" sx={{ color: '#666' }}>
+                              {step.distance.text}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: '#666' }}>
+                              • {step.duration.text}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+                </Paper>
+
+                {/* Chatbox con Gemini */}
+                <Paper sx={{ 
+                  flex: '1 1 400px',
+                  bgcolor: '#F3E5F5', 
+                  borderRadius: 2,
+                  border: '1px solid #E1BEE7',
+                  boxShadow: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: 400
+                }}>
+                  <Box sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    {/* Header del chat */}
+                    <Box sx={{ 
+                      p: 1.5, 
+                      borderBottom: '1px solid #E1BEE7',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5
+                    }}>
+                      <Box sx={{ 
+                        bgcolor: 'rgba(156, 39, 176, 0.1)', 
+                        borderRadius: '50%', 
+                        p: 0.75,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Typography sx={{ fontSize: 18 }}>🤖</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="body1" sx={{ fontWeight: 600, color: '#7B1FA2' }}>
+                          Gemini Assistant
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#9C27B0' }}>
+                          Tu asistente de viajes
+                        </Typography>
+                      </Box>
+                    </Box>
+
+                    {/* Mensajes del chat */}
+                    <Box sx={{ 
+                      flex: 1, 
+                      p: 1.5, 
+                      overflow: 'auto',
+                      maxHeight: 280
+                    }}>
+                      {chatMessages.map((msg) => (
+                        <Box key={msg.id} sx={{ mb: 1.5 }}>
+                          <Box sx={{
+                            display: 'flex',
+                            justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start',
+                            mb: 0.5
+                          }}>
+                            <Box sx={{
+                              maxWidth: '80%',
+                              p: 1,
+                              borderRadius: 2,
+                              bgcolor: msg.type === 'user' 
+                                ? '#E1BEE7' 
+                                : '#F5F5F5',
+                              border: msg.type === 'user' 
+                                ? '1px solid #CE93D8' 
+                                : 'none'
+                            }}>
+                              <Typography variant="body2" sx={{ color: '#424242' }}>
+                                {msg.message}
+                              </Typography>
+                              <Typography variant="caption" sx={{ 
+                                color: '#666', 
+                                display: 'block',
+                                mt: 0.5,
+                                fontSize: '0.65rem'
+                              }}>
+                                {msg.timestamp.toLocaleTimeString()}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Box>
+                      ))}
+                      
+                      {isTyping && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <Typography variant="body2" sx={{ color: '#666' }}>
+                            Gemini está escribiendo...
+                          </Typography>
+                          <CircularProgress size={14} sx={{ color: '#9C27B0' }} />
+                        </Box>
+                      )}
+                    </Box>
+
+                    {/* Input del chat */}
+                    <Box sx={{ 
+                      p: 1.5, 
+                      borderTop: '1px solid #E1BEE7',
+                      display: 'flex',
+                      gap: 1
+                    }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Pregúntame algo sobre tu viaje..."
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            bgcolor: 'white',
+                            '& fieldset': {
+                              borderColor: '#CE93D8',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#BA68C8',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#9C27B0',
+                            },
+                          },
+                        }}
+                      />
+                      <Button
+                        variant="contained"
+                        onClick={sendChatMessage}
+                        disabled={!chatInput.trim()}
+                        size="small"
+                        sx={{
+                          bgcolor: '#9C27B0',
+                          color: 'white',
+                          minWidth: 'auto',
+                          px: 1.5,
+                          '&:hover': {
+                            bgcolor: '#7B1FA2',
+                          },
+                          '&:disabled': {
+                            bgcolor: '#E1BEE7',
+                            color: '#9C27B0',
+                          }
+                        }}
+                      >
+                        <ArrowBack sx={{ transform: 'rotate(90deg)', fontSize: 18 }} />
+                      </Button>
+                    </Box>
+                  </Box>
+                </Paper>
+              </Box>
+            )}
           </Box>
 
           {/* Recomendaciones de IA */}
           {showRecommendations && aiRecommendations.length > 0 && (
-            <Box sx={{ width: '100%', mb: 4 }}>
-              <Card sx={{ 
-                background: 'linear-gradient(135deg, #9c27b0 0%, #e91e63 100%)',
-                color: 'white',
-                boxShadow: '0 8px 32px rgba(156, 39, 176, 0.3)'
+            <Box sx={{ width: '100%', mb: 3 }}>
+              <Paper sx={{ 
+                bgcolor: '#F3E5F5',
+                border: '1px solid #E1BEE7',
+                borderRadius: 2,
+                boxShadow: 'none',
+                p: 2
               }}>
-                <CardContent sx={{ p: 3 }}>
-                  <Box display="flex" alignItems="center" gap={2} mb={3}>
+                  <Box display="flex" alignItems="center" gap={1.5} mb={2}>
                     <Box sx={{ 
-                      bgcolor: 'rgba(255, 255, 255, 0.2)', 
+                      bgcolor: 'rgba(156, 39, 176, 0.1)', 
                       borderRadius: '50%', 
-                      p: 1,
+                      p: 0.75,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
                     }}>
-                      <Typography sx={{ fontSize: 24 }}>🤖</Typography>
+                      <Typography sx={{ fontSize: 20 }}>🤖</Typography>
                     </Box>
-                    <Box>
-                      <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                    <Box sx={{ flexGrow: 1 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: '#7B1FA2' }}>
                         Recomendaciones de IA
                       </Typography>
-                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                      <Typography variant="caption" sx={{ color: '#9C27B0' }}>
                         Basadas en tu ubicación y progreso del viaje
                       </Typography>
                     </Box>
-                    <Box sx={{ ml: 'auto' }}>
-                      <IconButton 
-                        onClick={() => setShowRecommendations(false)}
-                        sx={{ color: 'white' }}
-                      >
-                        <ArrowBack />
-                      </IconButton>
-                    </Box>
+                    <IconButton 
+                      size="small"
+                      onClick={() => setShowRecommendations(false)}
+                      sx={{ color: '#666' }}
+                    >
+                      <ArrowBack />
+                    </IconButton>
                   </Box>
                   
                   <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
                     {aiRecommendations.map((recommendation, index) => (
                       <Box key={index} sx={{ 
-                        bgcolor: 'rgba(255, 255, 255, 0.1)', 
+                        bgcolor: 'white', 
                         borderRadius: 2, 
-                        p: 2, 
-                        mb: 2,
-                        border: recommendation.priority === 'high' ? '2px solid rgba(255, 255, 255, 0.5)' : 'none'
+                        p: 1.5, 
+                        mb: 1.5,
+                        border: recommendation.priority === 'high' ? '2px solid #9C27B0' : '1px solid #E0E0E0'
                       }}>
-                        <Box display="flex" alignItems="center" gap={2} mb={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600, color: 'white' }}>
+                        <Box display="flex" alignItems="center" gap={1.5} mb={1}>
+                          <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242' }}>
                             {recommendation.title}
                           </Typography>
                           <Chip
                             label={recommendation.priority === 'high' ? 'ALTA' : recommendation.priority === 'medium' ? 'MEDIA' : 'BAJA'}
                             size="small"
                             sx={{ 
-                              bgcolor: recommendation.priority === 'high' ? 'error.main' : 
-                                     recommendation.priority === 'medium' ? 'warning.main' : 'success.main',
+                              bgcolor: recommendation.priority === 'high' ? '#F44336' : 
+                                     recommendation.priority === 'medium' ? '#FF9800' : '#4CAF50',
                               color: 'white',
                               fontWeight: 600,
-                              fontSize: '0.7rem'
+                              fontSize: '0.65rem',
+                              height: 18
                             }}
                           />
                         </Box>
-                        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.9)', mb: 1 }}>
+                        <Typography variant="body2" sx={{ color: '#666', mb: 1 }}>
                           {recommendation.description}
                         </Typography>
                         <Box display="flex" alignItems="center" gap={2}>
-                          <Box display="flex" alignItems="center" gap={1}>
-                            <AccessTime sx={{ fontSize: 16 }} />
-                            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                          <Box display="flex" alignItems="center" gap={0.5}>
+                            <AccessTime sx={{ fontSize: 14, color: '#666' }} />
+                            <Typography variant="caption" sx={{ color: '#666' }}>
                               {recommendation.estimated_time} min
                             </Typography>
                           </Box>
-                          <Box display="flex" alignItems="center" gap={1}>
-                            <Place sx={{ fontSize: 16 }} />
-                            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                          <Box display="flex" alignItems="center" gap={0.5}>
+                            <Place sx={{ fontSize: 14, color: '#666' }} />
+                            <Typography variant="caption" sx={{ color: '#666' }}>
                               {recommendation.type === 'restaurant' ? 'Restaurante' :
                                recommendation.type === 'attraction' ? 'Atracción' :
                                recommendation.type === 'gas_station' ? 'Gasolinera' :
@@ -3672,370 +4071,95 @@ const isUserAdmin = trip &&
                   
                   {isLoadingRecommendations && (
                     <Box display="flex" alignItems="center" justifyContent="center" gap={2} py={2}>
-                      <CircularProgress size={20} sx={{ color: 'white' }} />
-                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                      <CircularProgress size={18} sx={{ color: '#9C27B0' }} />
+                      <Typography variant="body2" sx={{ color: '#666' }}>
                         Obteniendo nuevas recomendaciones...
                       </Typography>
                     </Box>
                   )}
-                </CardContent>
-              </Card>
+                </Paper>
             </Box>
           )}
 
-          {/* Instrucciones de Navegación (solo cuando está navegando) */}
-          {isNavigating && navigationSteps.length > 0 && (
-            <Box sx={{ display: 'flex', gap: 3, width: '100%', mb: 4 }}>
-              {/* Navegación */}
-              <Box sx={{ flex: '1 1 60%' }}>
-                <Card sx={{ 
-                  background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
-                  color: 'white',
-                  boxShadow: '0 8px 32px rgba(25, 118, 210, 0.3)'
-                }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <Box display="flex" alignItems="center" gap={2} mb={3}>
-                      <Navigation sx={{ color: 'white', fontSize: 28 }} />
-                      <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
-                        Navegación Activa
-                      </Typography>
-                    </Box>
-                  
-                  {/* Instrucción actual destacada */}
-                  {nextInstruction && (
-                    <Box sx={{ 
-                      bgcolor: 'rgba(255, 255, 255, 0.15)', 
-                      borderRadius: 2, 
-                      p: 3, 
-                      mb: 3,
-                      backdropFilter: 'blur(10px)',
-                      border: '2px solid rgba(255, 255, 255, 0.3)'
-                    }}>
-                      <Box display="flex" alignItems="center" gap={2} mb={2}>
-                        {getDirectionIcon(nextInstruction)}
-                        <Typography variant="h5" sx={{ fontWeight: 700, color: 'white' }}>
-                          {nextInstruction}
-                        </Typography>
-                      </Box>
-                      
-                      <Box display="flex" alignItems="center" gap={4} mb={2}>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <Speed sx={{ fontSize: 18 }} />
-                          <Typography variant="h6" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 600 }}>
-                            {remainingDistance}
-                          </Typography>
-                        </Box>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <AccessTime sx={{ fontSize: 18 }} />
-                          <Typography variant="h6" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 600 }}>
-                            {remainingTime}
-                          </Typography>
-                        </Box>
-                      </Box>
-                      
-                      <Box display="flex" alignItems="center" gap={2}>
-                        <Chip
-                          label="ACTUAL"
-                          size="medium"
-                          sx={{ 
-                            bgcolor: 'white',
-                            color: 'primary.main',
-                            fontWeight: 700,
-                            fontSize: '0.8rem'
-                          }}
-                        />
-                        {isNavigatingToTip && (
-                          <Chip
-                            label={`📍 ${currentTipDestination?.name || 'Tip'}`}
-                            size="medium"
-                            sx={{ 
-                              bgcolor: 'orange',
-                              color: 'white',
-                              fontWeight: 700,
-                              fontSize: '0.8rem'
-                            }}
-                          />
-                        )}
-                        <Box sx={{ ml: 'auto' }}>
-                          <Button
-                            variant="contained"
-                            size="small"
-                            startIcon={<Typography sx={{ fontSize: 16 }}>🤖</Typography>}
-                            onClick={() => setShowRecommendations(!showRecommendations)}
-                            sx={{ 
-                              bgcolor: 'rgba(255, 255, 255, 0.2)',
-                              color: 'white',
-                              '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.3)' }
-                            }}
-                          >
-                            {showRecommendations ? 'Ocultar IA' : 'Ver IA'}
-                          </Button>
-                        </Box>
-                      </Box>
-                    </Box>
-                  )}
-
-                  {/* Próximas 2 instrucciones */}
-                  {navigationSteps.length > 0 && (
-                    <Box sx={{ mb: 3 }}>
-                      <Typography variant="h6" sx={{ color: 'white', mb: 2, fontWeight: 600 }}>
-                        Próximas instrucciones:
-                      </Typography>
-                      {navigationSteps.slice(currentStep + 1, currentStep + 3).map((step, index) => (
-                        <Box key={currentStep + 1 + index} sx={{ 
-                          bgcolor: 'rgba(255, 255, 255, 0.1)', 
-                          borderRadius: 2, 
-                          p: 2, 
-                          mb: 1,
-                          border: '1px solid rgba(255, 255, 255, 0.2)'
-                        }}>
-                          <Box display="flex" alignItems="center" gap={2}>
-                            {getDirectionIcon(step.instructions)}
-                            <Typography variant="body1" sx={{ color: 'white', fontWeight: 500 }}>
-                              {step.instructions.replace(/<[^>]*>/g, '')}
-                            </Typography>
-                          </Box>
-                          <Box display="flex" alignItems="center" gap={2} mt={1}>
-                            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-                              {step.distance.text}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-                              • {step.duration.text}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      ))}
-                    </Box>
-                  )}
-                  </CardContent>
-                </Card>
-              </Box>
-
-              {/* Chatbox con Gemini */}
-              <Box sx={{ flex: '1 1 40%' }}>
-                <Card sx={{ 
-                  background: 'linear-gradient(135deg, #9c27b0 0%, #e91e63 100%)',
-                  color: 'white',
-                  boxShadow: '0 8px 32px rgba(156, 39, 176, 0.3)',
-                  height: 400
-                }}>
-                  <CardContent sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
-                    {/* Header del chat */}
-                    <Box sx={{ 
-                      p: 2, 
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 2
-                    }}>
-                      <Box sx={{ 
-                        bgcolor: 'rgba(255, 255, 255, 0.2)', 
-                        borderRadius: '50%', 
-                        p: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <Typography sx={{ fontSize: 20 }}>🤖</Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
-                          Gemini Assistant
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-                          Tu asistente de viajes
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    {/* Mensajes del chat */}
-                    <Box sx={{ 
-                      flex: 1, 
-                      p: 2, 
-                      overflow: 'auto',
-                      maxHeight: 280
-                    }}>
-                      {chatMessages.map((msg) => (
-                        <Box key={msg.id} sx={{ mb: 2 }}>
-                          <Box sx={{
-                            display: 'flex',
-                            justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start',
-                            mb: 1
-                          }}>
-                            <Box sx={{
-                              maxWidth: '80%',
-                              p: 1.5,
-                              borderRadius: 2,
-                              bgcolor: msg.type === 'user' 
-                                ? 'rgba(255, 255, 255, 0.2)' 
-                                : 'rgba(255, 255, 255, 0.1)',
-                              border: msg.type === 'user' 
-                                ? '1px solid rgba(255, 255, 255, 0.3)' 
-                                : 'none'
-                            }}>
-                              <Typography variant="body2" sx={{ color: 'white' }}>
-                                {msg.message}
-                              </Typography>
-                              <Typography variant="caption" sx={{ 
-                                color: 'rgba(255, 255, 255, 0.6)', 
-                                display: 'block',
-                                mt: 0.5,
-                                fontSize: '0.7rem'
-                              }}>
-                                {msg.timestamp.toLocaleTimeString()}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </Box>
-                      ))}
-                      
-                      {isTyping && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                          <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-                            Gemini está escribiendo...
-                          </Typography>
-                          <CircularProgress size={16} sx={{ color: 'white' }} />
-                        </Box>
-                      )}
-                    </Box>
-
-                    {/* Input del chat */}
-                    <Box sx={{ 
-                      p: 2, 
-                      borderTop: '1px solid rgba(255, 255, 255, 0.2)',
-                      display: 'flex',
-                      gap: 1
-                    }}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="Pregúntame algo sobre tu viaje..."
-                        value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            color: 'white',
-                            '& fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.3)',
-                            },
-                            '&:hover fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.5)',
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: 'white',
-                            },
-                          },
-                          '& .MuiInputBase-input': {
-                            color: 'white',
-                            '&::placeholder': {
-                              color: 'rgba(255, 255, 255, 0.7)',
-                            },
-                          },
-                        }}
-                      />
-                      <Button
-                        variant="contained"
-                        onClick={sendChatMessage}
-                        disabled={!chatInput.trim()}
-                        sx={{
-                          bgcolor: 'rgba(255, 255, 255, 0.2)',
-                          color: 'white',
-                          minWidth: 'auto',
-                          px: 2,
-                          '&:hover': {
-                            bgcolor: 'rgba(255, 255, 255, 0.3)',
-                          },
-                          '&:disabled': {
-                            bgcolor: 'rgba(255, 255, 255, 0.1)',
-                            color: 'rgba(255, 255, 255, 0.5)',
-                          }
-                        }}
-                      >
-                        <ArrowBack sx={{ transform: 'rotate(90deg)' }} />
-                      </Button>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Box>
-            </Box>
-          )}
 
           {/* Lista de Lugares Recomendados */}
           {recommendedPlaces.length > 0 && (
-            <Box sx={{ width: '100%', mb: 4 }}>
-              <Card sx={{ 
-                background: 'linear-gradient(135deg, #4caf50 0%, #8bc34a 100%)',
-                color: 'white',
-                boxShadow: '0 8px 32px rgba(76, 175, 80, 0.3)'
+            <Box sx={{ width: '100%', mb: 3 }}>
+              <Paper sx={{ 
+                bgcolor: '#E8F5E9',
+                border: '1px solid #C8E6C9',
+                borderRadius: 2,
+                boxShadow: 'none',
+                p: 2
               }}>
-                <CardContent sx={{ p: 3 }}>
-                  <Box display="flex" alignItems="center" gap={2} mb={3}>
+                  <Box display="flex" alignItems="center" gap={1.5} mb={2}>
                     <Box sx={{ 
-                      bgcolor: 'rgba(255, 255, 255, 0.2)', 
+                      bgcolor: 'rgba(46, 125, 50, 0.1)', 
                       borderRadius: '50%', 
-                      p: 1,
+                      p: 0.75,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
                     }}>
-                      <Place sx={{ fontSize: 24 }} />
+                      <Place sx={{ fontSize: 20, color: '#2E7D32' }} />
                     </Box>
                     <Box>
-                      <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: '#2E7D32' }}>
                         Lugares Recomendados
                       </Typography>
-                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                      <Typography variant="caption" sx={{ color: '#4CAF50' }}>
                         Basados en tu consulta a Gemini
                       </Typography>
                     </Box>
                   </Box>
                   
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
                     {recommendedPlaces.map((place, index) => (
-                      <Card key={place.id} sx={{ 
-                        flex: '1 1 300px',
-                        minWidth: 300,
-                        bgcolor: 'rgba(255, 255, 255, 0.1)',
-                        border: selectedPlace?.id === place.id ? '2px solid rgba(255, 255, 255, 0.5)' : '1px solid rgba(255, 255, 255, 0.2)',
+                      <Paper key={place.id} sx={{ 
+                        flex: '1 1 280px',
+                        minWidth: 280,
+                        bgcolor: 'white',
+                        border: selectedPlace?.id === place.id ? '2px solid #4CAF50' : '1px solid #E0E0E0',
+                        borderRadius: 2,
+                        boxShadow: 'none',
                         cursor: 'pointer',
                         transition: 'all 0.3s ease',
                         '&:hover': {
-                          bgcolor: 'rgba(255, 255, 255, 0.2)',
-                          transform: 'translateY(-2px)'
+                          transform: 'translateY(-2px)',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                         }
                       }}
                       onClick={() => setSelectedPlace(place)}
                       >
-                        <CardContent sx={{ p: 2 }}>
-                          <Box display="flex" alignItems="center" gap={2} mb={1}>
+                        <Box sx={{ p: 1.5 }}>
+                          <Box display="flex" alignItems="center" gap={1.5} mb={1}>
                             <Box sx={{ 
-                              bgcolor: 'rgba(255, 255, 255, 0.2)', 
+                              bgcolor: '#E8F5E9', 
                               borderRadius: 1, 
-                              p: 1,
+                              p: 0.75,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center'
                             }}>
-                              {place.type === 'restaurant' && <Typography sx={{ fontSize: 20 }}>🍽️</Typography>}
-                              {place.type === 'lodging' && <Typography sx={{ fontSize: 20 }}>🏨</Typography>}
-                              {place.type === 'tourist_attraction' && <Typography sx={{ fontSize: 20 }}>🎯</Typography>}
-                              {place.type === 'gas_station' && <Typography sx={{ fontSize: 20 }}>⛽</Typography>}
+                              {place.type === 'restaurant' && <Typography sx={{ fontSize: 18 }}>🍽️</Typography>}
+                              {place.type === 'lodging' && <Typography sx={{ fontSize: 18 }}>🏨</Typography>}
+                              {place.type === 'tourist_attraction' && <Typography sx={{ fontSize: 18 }}>🎯</Typography>}
+                              {place.type === 'gas_station' && <Typography sx={{ fontSize: 18 }}>⛽</Typography>}
                             </Box>
-                            <Box sx={{ flex: 1 }}>
-                              <Typography variant="h6" sx={{ fontWeight: 600, color: 'white', mb: 0.5 }}>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242', mb: 0.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {place.name}
                               </Typography>
-                              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                              <Typography variant="caption" sx={{ color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
                                 {place.vicinity}
                               </Typography>
                             </Box>
                           </Box>
                           
-                          <Box display="flex" alignItems="center" gap={2} mt={1}>
-                            <Box display="flex" alignItems="center" gap={1}>
-                              <Typography sx={{ fontSize: 16 }}>⭐</Typography>
-                              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
+                          <Box display="flex" alignItems="center" gap={1.5} mt={1}>
+                            <Box display="flex" alignItems="center" gap={0.5}>
+                              <Typography sx={{ fontSize: 14 }}>⭐</Typography>
+                              <Typography variant="caption" sx={{ color: '#424242', fontWeight: 500 }}>
                                 {place.rating}/5
                               </Typography>
                             </Box>
@@ -4045,29 +4169,30 @@ const isUserAdmin = trip &&
                                      place.type === 'tourist_attraction' ? 'Atracción' : 'Gasolinera'}
                               size="small"
                               sx={{ 
-                                bgcolor: 'rgba(255, 255, 255, 0.2)',
-                                color: 'white',
+                                bgcolor: '#E8F5E9',
+                                color: '#2E7D32',
                                 fontWeight: 600,
-                                fontSize: '0.7rem'
+                                fontSize: '0.65rem',
+                                height: 18
                               }}
                             />
                           </Box>
                           
                           {selectedPlace?.id === place.id && (
                             <Box sx={{ 
-                              mt: 2, 
+                              mt: 1.5, 
                               p: 1, 
-                              bgcolor: 'rgba(255, 255, 255, 0.1)', 
+                              bgcolor: '#E8F5E9', 
                               borderRadius: 1,
-                              border: '1px solid rgba(255, 255, 255, 0.3)'
+                              border: '1px solid #C8E6C9'
                             }}>
-                              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
+                              <Typography variant="caption" sx={{ color: '#2E7D32' }}>
                                 📍 Haz clic en el pin del mapa para más información
                               </Typography>
                             </Box>
                           )}
-                        </CardContent>
-                      </Card>
+                        </Box>
+                      </Paper>
                     ))}
                   </Box>
                   
@@ -4082,43 +4207,51 @@ const isUserAdmin = trip &&
                         setSelectedPlace(null);
                       }}
                       sx={{
-                        color: 'white',
-                        borderColor: 'rgba(255, 255, 255, 0.5)',
+                        color: '#2E7D32',
+                        borderColor: '#4CAF50',
                         '&:hover': {
-                          borderColor: 'white',
-                          bgcolor: 'rgba(255, 255, 255, 0.1)'
-                        }
+                          borderColor: '#388E3C',
+                          bgcolor: '#E8F5E9'
+                        },
+                        textTransform: 'none',
+                        borderRadius: 2,
                       }}
                     >
                       Limpiar Recomendaciones
                     </Button>
                   </Box>
-                </CardContent>
-              </Card>
+                </Paper>
             </Box>
           )}
 
           {/* Lista de Participantes */}
           <Box sx={{ width: '100%' }}>
-            <Card>
-              <CardContent sx={{ p: 4 }}>
-                <Box display="flex" alignItems="center" gap={2} mb={3}>
-                  <People sx={{ color: 'primary.main' }} />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            <Paper sx={{ boxShadow: 'none', border: '1px solid #E0E0E0', borderRadius: 2 }}>
+              <Box sx={{ p: 3 }}>
+                <Box display="flex" alignItems="center" gap={2} mb={2}>
+                  <People sx={{ color: '#1976D2', fontSize: 24 }} />
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
                     Miembros del Viaje ({participants.length})
                   </Typography>
                 </Box>
 
                 {participants.length === 0 ? (
-                  <Box sx={{ textAlign: 'center', py: 4 }}>
-                    <People sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
-                    <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+                  <Box sx={{ textAlign: 'center', py: 3 }}>
+                    <People sx={{ fontSize: 48, color: '#BDBDBD', mb: 1.5 }} />
+                    <Typography variant="h6" sx={{ mb: 1.5, color: '#666' }}>
                       No hay miembros en este viaje
                     </Typography>
                     <Button
                       variant="contained"
+                      size="small"
                       startIcon={<PersonAdd />}
                       onClick={() => router.push(`/trip/${tripId}/add-users`)}
+                      sx={{
+                        bgcolor: '#4CAF50',
+                        '&:hover': { bgcolor: '#388E3C' },
+                        textTransform: 'none',
+                        borderRadius: 2,
+                      }}
                     >
                       Agregar Miembros
                     </Button>
@@ -4126,41 +4259,46 @@ const isUserAdmin = trip &&
                 ) : (
                   <List>
                     {participants.map((p) => (
-                      <ListItem key={p.id}>
+                      <ListItem key={p.id} sx={{ py: 1 }}>
                       <ListItemAvatar>
-                      <Avatar src={p.profilePicture || undefined}>
+                      <Avatar src={p.profilePicture || undefined} sx={{ width: 40, height: 40 }}>
                         {p.name?.[0] || 'U'}
                       </Avatar>
                       </ListItemAvatar>
                       <ListItemText
                         primary={p.name}
                         secondary={p.email}
+                        primaryTypographyProps={{ sx: { fontWeight: 500, color: '#424242' } }}
+                        secondaryTypographyProps={{ sx: { color: '#666', fontSize: '0.875rem' } }}
                       />
                       {isUserAdmin && (
                       <>
                       {/* Botón eliminar participante */}
                       <IconButton
-                        color="error"
+                        size="small"
                         onClick={() => handleRemoveParticipant(p.id)}
+                        sx={{ color: '#F44336' }}
                       >
-                    <Delete />
+                    <Delete sx={{ fontSize: 18 }} />
                       </IconButton>
                     {/* Botón agregar como admin */}
                     {!trip?.adminIds?.includes(p.id) && (
                     <IconButton
-                      color="primary"
+                      size="small"
                       onClick={() => handleAddAdmin(p.id)}
+                      sx={{ color: '#1976D2' }}
                     >
-                        <PersonAdd />
+                        <PersonAdd sx={{ fontSize: 18 }} />
                         </IconButton>
                         )}
                         {/* Botón quitar admin */}
                         {trip?.adminIds?.includes(p.id) && (
                           <IconButton
-                          color="warning"
+                          size="small"
                           onClick={() => handleRemoveAdmin(p.id)}
+                          sx={{ color: '#FF9800' }}
                           >
-                            <Clear />
+                            <Clear sx={{ fontSize: 18 }} />
                           </IconButton>
                         )}
                       </>
@@ -4170,8 +4308,8 @@ const isUserAdmin = trip &&
                 </List>
 
                 )}
-              </CardContent>
-            </Card>
+              </Box>
+            </Paper>
           </Box>
         </Box>
       </Container>
