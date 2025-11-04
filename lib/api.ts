@@ -243,6 +243,14 @@ export const api = {
     return response;
   },
 
+  deleteAllTipsByTrip: async (tripId: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/tips/trip/${tripId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
   getTipStats: async (tripId: string) => {
     const response = await fetch(`${API_BASE_URL}/api/tips/trip/${tripId}/stats`, {
       headers: getAuthHeaders(),
@@ -357,6 +365,34 @@ export const api = {
     const response = await fetch(`${API_BASE_URL}/api/purchases/trip/${tripId}/${purchaseId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  // Actualizar fechas del viaje
+  updateTripDates: async (tripId: string, userId: number, datesData: { dateI: string; dateF: string }) => {
+    const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}/dates?userId=${userId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(datesData),
+    });
+    return response;
+  },
+
+  // Actualizar origen y destino del viaje
+  updateTripLocations: async (tripId: string, userId: number, locationsData: {
+    origin: string;
+    destination: string;
+    originAddress?: string;
+    destinationAddress?: string;
+    originCoords?: { lat: number; lng: number };
+    destinationCoords?: { lat: number; lng: number };
+    vehicle?: string;
+  }) => {
+    const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}/locations?userId=${userId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(locationsData),
     });
     return response;
   },

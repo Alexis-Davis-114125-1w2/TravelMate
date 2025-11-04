@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 import { api, API_BASE_URL, getAuthHeaders } from '../../../../lib/api';
 import { toast } from 'react-toastify';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Declaraciones de tipos para Google Maps
 declare global {
@@ -242,6 +243,28 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [purchasesExpanded, setPurchasesExpanded] = useState(false);
   const [purchaseFilter, setPurchaseFilter] = useState<'all' | 'general' | 'individual'>('all');
 
+  // Estados para edición de fechas y ubicaciones
+  const [openEditDates, setOpenEditDates] = useState(false);
+  const [openEditLocations, setOpenEditLocations] = useState(false);
+  const [editDateI, setEditDateI] = useState('');
+  const [editDateF, setEditDateF] = useState('');
+  const [editOrigin, setEditOrigin] = useState('');
+  const [editDestination, setEditDestination] = useState('');
+  const [editOriginCoords, setEditOriginCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [editDestinationCoords, setEditDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
+  
+  // Referencias para los autocompletados
+  const originAutocompleteRef = useRef<HTMLInputElement>(null);
+  const destinationAutocompleteRef = useRef<HTMLInputElement>(null);
+  const originMapModalRef = useRef<HTMLDivElement>(null);
+  const destinationMapModalRef = useRef<HTMLDivElement>(null);
+  const [originModalMap, setOriginModalMap] = useState<any>(null);
+  const [destinationModalMap, setDestinationModalMap] = useState<any>(null);
+  const [originModalMarker, setOriginModalMarker] = useState<any>(null);
+  const [destinationModalMarker, setDestinationModalMarker] = useState<any>(null);
+  const [originAutocomplete, setOriginAutocomplete] = useState<any>(null);
+  const [destinationAutocomplete, setDestinationAutocomplete] = useState<any>(null);
+
   // Debug: Log cuando cambien los tips
   useEffect(() => {
     console.log('🔍 Tips cambiaron:', tips.length, tips);
@@ -251,6 +274,157 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const mapRef = useRef<HTMLDivElement>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [openShareDialog, setOpenShareDialog] = useState(false);
+
+  // Función para inicializar un mapa pequeño en el modal
+  const initializeModalMap = (
+    mapRef: React.RefObject<HTMLDivElement | null>, 
+    coords: {lat: number, lng: number} | null, 
+    title: string, 
+    isOrigin: boolean = false
+  ) => {
+    if (!mapRef.current || !coords || !window.google) return;
+
+    const map = new window.google.maps.Map(mapRef.current, {
+      zoom: 12,
+      center: coords,
+      mapTypeId: window.google.maps.MapTypeId.ROADMAP,
+      disableDefaultUI: true,
+      zoomControl: true,
+      styles: [
+        {
+          featureType: 'poi',
+          elementType: 'labels',
+          stylers: [{ visibility: 'off' }]
+        }
+      ]
+    });
+
+    const marker = new window.google.maps.Marker({
+      position: coords,
+      map: map,
+      title: title,
+      animation: window.google.maps.Animation.DROP,
+      icon: {
+        path: window.google.maps.SymbolPath.CIRCLE,
+        scale: 8,
+        fillColor: isOrigin ? '#4CAF50' : '#F44336',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 2,
+      },
+      label: isOrigin ? 'O' : 'D'
+    });
+
+    // Guardar referencia del mapa y marcador
+    if (isOrigin) {
+      setOriginModalMap(map);
+      setOriginModalMarker(marker);
+    } else {
+      setDestinationModalMap(map);
+      setDestinationModalMarker(marker);
+    }
+
+    // Agregar listener de click en el mapa
+    map.addListener('click', (event: any) => {
+      const clickedCoords = {
+        lat: event.latLng.lat(),
+        lng: event.latLng.lng()
+      };
+
+      // Actualizar coordenadas
+      if (isOrigin) {
+        setEditOriginCoords(clickedCoords);
+      } else {
+        setEditDestinationCoords(clickedCoords);
+      }
+
+      // Mover el marcador a la nueva posición
+      marker.setPosition(clickedCoords);
+
+      // Geocodificar la nueva ubicación para obtener la dirección
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ location: clickedCoords }, (results: any, status: any) => {
+        if (status === 'OK' && results && results[0]) {
+          const address = results[0].formatted_address;
+          if (isOrigin) {
+            setEditOrigin(address);
+          } else {
+            setEditDestination(address);
+          }
+        }
+      });
+    });
+  };
+
+  // Limpiar autocompletados cuando se cierre el modal
+  useEffect(() => {
+    if (!openEditLocations) {
+      if (originAutocomplete) {
+        window.google.maps?.event?.clearInstanceListeners(originAutocomplete);
+        setOriginAutocomplete(null);
+      }
+      if (destinationAutocomplete) {
+        window.google.maps?.event?.clearInstanceListeners(destinationAutocomplete);
+        setDestinationAutocomplete(null);
+      }
+    }
+  }, [openEditLocations]);
+
+  // Inicializar mapas cuando se abra el modal y haya coordenadas
+  const initializeMapsInModal = () => {
+    if (!isGoogleMapsLoaded || !window.google || !openEditLocations) return;
+
+    // Inicializar mapa de origen
+    if (editOriginCoords && originMapModalRef.current && !originModalMap) {
+      setTimeout(() => {
+        if (originMapModalRef.current && editOriginCoords) {
+          initializeModalMap(originMapModalRef, editOriginCoords, 'Origen', true);
+        }
+      }, 200);
+    }
+
+    // Inicializar mapa de destino
+    if (editDestinationCoords && destinationMapModalRef.current && !destinationModalMap) {
+      setTimeout(() => {
+        if (destinationMapModalRef.current && editDestinationCoords) {
+          initializeModalMap(destinationMapModalRef, editDestinationCoords, 'Destino', false);
+        }
+      }, 200);
+    }
+  };
+
+  // Inicializar mapas cuando cambien las coordenadas o se abra el modal
+  useEffect(() => {
+    if (openEditLocations) {
+      initializeMapsInModal();
+    }
+  }, [openEditLocations, editOriginCoords, editDestinationCoords, isGoogleMapsLoaded, originModalMap, destinationModalMap]);
+
+  // Actualizar marcadores cuando cambien las coordenadas (sin recrear el mapa)
+  useEffect(() => {
+    if (editOriginCoords && originModalMarker && originModalMap) {
+      originModalMarker.setPosition(editOriginCoords);
+      originModalMap.setCenter(editOriginCoords);
+    }
+  }, [editOriginCoords, originModalMarker, originModalMap]);
+
+  useEffect(() => {
+    if (editDestinationCoords && destinationModalMarker && destinationModalMap) {
+      destinationModalMarker.setPosition(editDestinationCoords);
+      destinationModalMap.setCenter(editDestinationCoords);
+    }
+  }, [editDestinationCoords, destinationModalMarker, destinationModalMap]);
+
+  // Limpiar cuando se cierre el modal
+  useEffect(() => {
+    if (!openEditLocations) {
+      setOriginModalMap(null);
+      setDestinationModalMap(null);
+      setOriginModalMarker(null);
+      setDestinationModalMarker(null);
+    }
+  }, [openEditLocations]);
+
 
   // Redirección si no está autenticado
   useEffect(() => {
@@ -406,12 +580,41 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
       loadTipsFromDatabase().then(tipsFromDB => {
         if (tipsFromDB && tipsFromDB.length > 0) {
           console.log('📥 Cargando tips desde base de datos:', tipsFromDB);
-          setTips(tipsFromDB);
+          // Normalizar tips cargados: agregar place_id si existe en placeId
+          const normalizedTips = tipsFromDB.map((tip: any) => ({
+            ...tip,
+            place_id: tip.placeId || tip.place_id, // Asegurar que place_id esté disponible
+            location: tip.location || (tip.latitude && tip.longitude ? {
+              lat: tip.latitude,
+              lng: tip.longitude
+            } : null)
+          }));
+          
+          // Reemplazar todos los tips con los de la base de datos (evitar duplicados)
+          setTips(prev => {
+            // Si ya hay tips locales, solo agregar los que no existen
+            const uniqueTips = filterDuplicateTips(prev, normalizedTips);
+            if (uniqueTips.length > 0) {
+              return [...prev, ...uniqueTips];
+            }
+            // Si no hay tips locales, usar los de la BD
+            if (prev.length === 0) {
+              return normalizedTips;
+            }
+            return prev;
+          });
+          
           // Agregar pins al mapa cuando el mapa esté disponible
           const addPinsWhenMapReady = () => {
             if (map) {
               console.log('🗺️ Mapa disponible, agregando pins de tips');
-              addTipPinsToMap(tipsFromDB);
+              setTips(prev => {
+                const uniqueTips = filterDuplicateTips(prev, normalizedTips);
+                if (uniqueTips.length > 0) {
+                  addTipPinsToMap(uniqueTips);
+                }
+                return prev;
+              });
             } else {
               console.log('🗺️ Mapa no disponible, reintentando en 500ms');
               setTimeout(addPinsWhenMapReady, 500);
@@ -437,7 +640,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
         }, 1000); // Pequeño delay para asegurar que el mapa esté listo
       }
     }
-  }, [isGoogleMapsLoaded, trip]);
+  }, [isGoogleMapsLoaded, trip?.originLatitude, trip?.originLongitude, trip?.destinationLatitude, trip?.destinationLongitude]);
 
   // Calcular métricas cuando cambie la ubicación actual
   useEffect(() => {
@@ -694,6 +897,148 @@ const isUserAdmin = trip &&
       }
     } catch (error) {
       console.error('Error creando compra:', error);
+      toast.error('Error de conexión');
+    }
+  };
+
+  // 🛒 Eliminar compra
+  const handleDeletePurchase = async (purchaseId: string) => {
+    if (!trip?.id) return;
+
+    try {
+      const response = await api.deletePurchase(trip.id.toString(), purchaseId);
+      
+      if (response.ok) {
+        toast.success('Compra eliminada exitosamente');
+        // Recargar compras
+        const userId = typeof user?.id === 'string' ? parseInt(user.id, 10) : user?.id || 0;
+        loadPurchases(trip.id.toString(), userId);
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Error al eliminar compra');
+      }
+    } catch (error) {
+      console.error('Error eliminando compra:', error);
+      toast.error('Error de conexión');
+    }
+  };
+
+  // 📅 Actualizar fechas del viaje
+  const handleUpdateTripDates = async () => {
+    if (!trip?.id || !user?.id || !editDateI || !editDateF) {
+      toast.error('Por favor, completa ambas fechas');
+      return;
+    }
+
+    // Validar que las fechas no sean anteriores a hoy
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dateI = new Date(editDateI);
+    const dateF = new Date(editDateF);
+
+    if (dateI < today) {
+      toast.error('La fecha de inicio no puede ser anterior a hoy');
+      return;
+    }
+
+    if (dateF < dateI) {
+      toast.error('La fecha de fin debe ser posterior a la fecha de inicio');
+      return;
+    }
+
+    try {
+      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+      const response = await api.updateTripDates(trip.id.toString(), userId, {
+        dateI: editDateI,
+        dateF: editDateF
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        // Actualizar el estado local del trip
+        setTrip(prev => prev ? {
+          ...prev,
+          dateI: editDateI,
+          dateF: editDateF,
+          status: result.data?.status || prev.status
+        } : null);
+        setOpenEditDates(false);
+        toast.success('Fechas actualizadas exitosamente');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Error al actualizar fechas');
+      }
+    } catch (error) {
+      console.error('Error actualizando fechas:', error);
+      toast.error('Error de conexión');
+    }
+  };
+
+  // 📍 Actualizar origen y destino del viaje
+  const handleUpdateTripLocations = async () => {
+    if (!trip?.id || !user?.id || !editOrigin || !editDestination) {
+      toast.error('Por favor, completa origen y destino');
+      return;
+    }
+
+    // Validar que se hayan seleccionado ubicaciones con coordenadas
+    if (!editOriginCoords || !editDestinationCoords) {
+      toast.error('Por favor, selecciona ubicaciones válidas de la lista de sugerencias');
+      return;
+    }
+
+    try {
+      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+
+      // Preparar datos de ubicación usando las coordenadas ya obtenidas del autocompletado
+      const locationsData: any = {
+        origin: editOrigin,
+        destination: editDestination,
+        vehicle: trip.vehicle || 'auto',
+        originCoords: editOriginCoords,
+        destinationCoords: editDestinationCoords,
+        originAddress: editOrigin,
+        destinationAddress: editDestination
+      };
+
+      const response = await api.updateTripLocations(trip.id.toString(), userId, locationsData);
+
+      if (response.ok) {
+        const result = await response.json();
+        // Recargar los detalles del viaje para obtener los datos actualizados
+        const tripResponse = await api.getTripDetails(trip.id.toString(), userId);
+        if (tripResponse.ok) {
+          const updatedTrip = await tripResponse.json();
+          setTrip(updatedTrip);
+          
+          // Actualizar el mapa si hay coordenadas del destino
+          // El useEffect que escucha cambios en las coordenadas del trip se encargará de recalcular la ruta
+          if (editDestinationCoords && map) {
+            // Centrar el mapa en el nuevo destino
+            map.setCenter(editDestinationCoords);
+            map.setZoom(10);
+          }
+          
+          // Recalcular la ruta después de actualizar el trip
+          if (updatedTrip.originLatitude && updatedTrip.originLongitude && 
+              updatedTrip.destinationLatitude && updatedTrip.destinationLongitude) {
+            setTimeout(() => {
+              calculateRoute();
+            }, 500);
+          }
+          
+          // Limpiar estados del modal
+          setEditOriginCoords(null);
+          setEditDestinationCoords(null);
+        }
+        setOpenEditLocations(false);
+        toast.success('Origen y destino actualizados exitosamente');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Error al actualizar ubicaciones');
+      }
+    } catch (error) {
+      console.error('Error actualizando ubicaciones:', error);
       toast.error('Error de conexión');
     }
   };
@@ -1697,9 +2042,37 @@ const isUserAdmin = trip &&
     }
   };
 
-  // Función para llamar a Gemini AI
+  // Función para llamar a Gemini AI (para recomendaciones inteligentes)
   const callGeminiAI = async (nearbyPlaces: any[], distanceTraveled: number, tripData: any) => {
     try {
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      
+      if (!apiKey) {
+        console.warn('⚠️ Gemini API key no configurada, usando recomendaciones por defecto');
+        // Fallback a recomendaciones básicas
+        return {
+          recommendations: [
+            {
+              title: "Parada para descansar",
+              description: "Te recomendamos hacer una parada en el próximo pueblo para estirar las piernas y tomar algo.",
+              type: "activity",
+              priority: "high",
+              estimated_time: "30"
+            },
+            {
+              title: "Gasolinera cercana",
+              description: "Hay una gasolinera cercana con buenos precios y servicios.",
+              type: "gas_station",
+              priority: "medium",
+              estimated_time: "15"
+            }
+          ]
+        };
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
       const prompt = `
         Eres un asistente de viajes inteligente. El usuario está viajando de ${tripData?.origin || 'origen'} a ${tripData?.destination || 'destino'} 
         y ha recorrido ${distanceTraveled.toFixed(1)} km. 
@@ -1714,7 +2087,7 @@ const isUserAdmin = trip &&
         - Lugares para alojarse si es un viaje largo
         - Actividades según el tipo de viaje
         
-        Responde en formato JSON con:
+IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional antes o después. El formato debe ser:
         {
           "recommendations": [
             {
@@ -1728,32 +2101,51 @@ const isUserAdmin = trip &&
         }
       `;
       
-      // Aquí integrarías con la API de Gemini
-      // Por ahora, simularemos una respuesta
-      const mockResponse = {
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      // Intentar parsear la respuesta JSON (puede venir con markdown code blocks)
+      let jsonText = text.trim();
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      } else if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/```\n?/g, '').trim();
+      }
+
+      try {
+        const parsedResponse = JSON.parse(jsonText);
+        return parsedResponse;
+      } catch (parseError) {
+        console.error('Error parseando respuesta de Gemini:', parseError, 'Respuesta:', text);
+        // Fallback a recomendaciones por defecto
+        return {
         recommendations: [
           {
             title: "Parada para descansar",
-            description: "Te recomendamos hacer una parada en el próximo pueblo para estirar las piernas y tomar algo.",
+              description: "Te recomendamos hacer una parada para estirar las piernas y tomar algo.",
             type: "activity",
             priority: "high",
             estimated_time: "30"
-          },
-          {
-            title: "Gasolinera cercana",
-            description: "Hay una gasolinera a 5km con buenos precios y servicios.",
-            type: "gas_station",
-            priority: "medium",
-            estimated_time: "15"
-          }
-        ]
-      };
-      
-      return mockResponse;
+            }
+          ]
+        };
+      }
       
     } catch (error) {
       console.error('Error llamando a Gemini AI:', error);
-      return null;
+      // Fallback a recomendaciones básicas
+      return {
+        recommendations: [
+          {
+            title: "Parada para descansar",
+            description: "Te recomendamos hacer una parada para estirar las piernas.",
+            type: "activity",
+            priority: "medium",
+            estimated_time: "20"
+          }
+        ]
+      };
     }
   };
 
@@ -1811,52 +2203,238 @@ const isUserAdmin = trip &&
     }
   };
 
-  // Función para generar respuesta de IA
+  // Función para generar respuesta de IA usando Gemini como cerebro principal
   const generateAIResponse = async (userInput: string): Promise<string> => {
     const lowerInput = userInput.toLowerCase();
     
     try {
-      // Detectar tipo de consulta y generar respuesta contextual
-      // Consultas específicas para el mejor lugar
+      // Primero, usar Gemini para entender la intención del usuario
+      const geminiResponse = await generateGeminiResponse(userInput);
+      
+      // Detectar si el usuario quiere buscar lugares en el DESTINO (no en ubicación actual)
+      const wantsDestinationLocation: boolean = !!(
+        lowerInput.includes('en mi destino') ||
+        lowerInput.includes('en el destino') ||
+        lowerInput.includes('destino') ||
+        lowerInput.includes('buenos aires') ||
+        (lowerInput.includes('en') && lowerInput.includes('destino')) ||
+        (trip?.destination && lowerInput.includes(trip.destination.toLowerCase()))
+      );
+
+      // Detectar si el usuario quiere buscar lugares (después de que Gemini responda)
+      // Esto permite que Gemini responda primero, y luego buscamos lugares si es necesario
+      const isPlaceSearchQuery = 
+        lowerInput.includes('mejor lugar para comer') || 
+        lowerInput.includes('mejor restaurante') ||
+        lowerInput.includes('mejor lugar para dormir') || 
+        lowerInput.includes('mejor hotel') || 
+        lowerInput.includes('mejores departamentos') ||
+        lowerInput.includes('mejores lugares para visitar') || 
+        lowerInput.includes('mejores atracciones') ||
+        lowerInput.includes('comer') || 
+        lowerInput.includes('restaurante') || 
+        lowerInput.includes('comida') ||
+        lowerInput.includes('dormir') || 
+        lowerInput.includes('hotel') || 
+        lowerInput.includes('alojamiento') || 
+        lowerInput.includes('departamento') || 
+        lowerInput.includes('departamentos') ||
+        lowerInput.includes('atracción') || 
+        lowerInput.includes('turístico') || 
+        lowerInput.includes('visitar') ||
+        lowerInput.includes('gasolinera') || 
+        lowerInput.includes('combustible') || 
+        lowerInput.includes('gas') || 
+        lowerInput.includes('nafta') || 
+        lowerInput.includes('cargar') ||
+        lowerInput.includes('lugares') ||
+        lowerInput.includes('nuevos lugares') ||
+        lowerInput.includes('otros lugares');
+
+      // Si es una consulta de búsqueda de lugares, buscar lugares en paralelo
+      if (isPlaceSearchQuery) {
+        let searchResponse = '';
+        const useDestination: boolean = !!(wantsDestinationLocation && trip?.destinationLatitude && trip?.destinationLongitude);
+        
+        // Buscar lugares según el tipo de consulta, pasando si debe usar destino o ubicación actual
       if (lowerInput.includes('mejor lugar para comer') || lowerInput.includes('mejor restaurante')) {
-        return await handleBestRestaurantQuery();
+          searchResponse = await handleBestRestaurantQuery(useDestination);
       } else if (lowerInput.includes('mejor lugar para dormir') || lowerInput.includes('mejor hotel') || lowerInput.includes('mejores departamentos')) {
-        return await handleBestAccommodationQuery();
+          searchResponse = await handleBestAccommodationQuery(useDestination);
       } else if (lowerInput.includes('mejores lugares para visitar') || lowerInput.includes('mejores atracciones')) {
-        return await handleBestAttractionsQuery();
-      }
-      // Consultas generales
-      else if (lowerInput.includes('comer') || lowerInput.includes('restaurante') || lowerInput.includes('comida')) {
-        return await handleRestaurantQuery();
+          searchResponse = await handleBestAttractionsQuery(useDestination);
+        } else if (lowerInput.includes('comer') || lowerInput.includes('restaurante') || lowerInput.includes('comida')) {
+          searchResponse = await handleRestaurantQuery(useDestination);
       } else if (lowerInput.includes('dormir') || lowerInput.includes('hotel') || lowerInput.includes('alojamiento') || lowerInput.includes('departamento') || lowerInput.includes('departamentos')) {
-        return await handleAccommodationQuery();
+          searchResponse = await handleAccommodationQuery(useDestination);
       } else if (lowerInput.includes('atracción') || lowerInput.includes('turístico') || lowerInput.includes('visitar')) {
-        return await handleAttractionQuery();
+          searchResponse = await handleAttractionQuery(useDestination);
     } else if (lowerInput.includes('gasolinera') || lowerInput.includes('combustible') || lowerInput.includes('gas') || lowerInput.includes('nafta') || lowerInput.includes('cargar')) {
-      return await handleGasStationQuery();
+          searchResponse = await handleGasStationQuery(useDestination);
       } else if (lowerInput.includes('tráfico') || lowerInput.includes('ruta') || lowerInput.includes('dirección')) {
-        return await handleTrafficQuery();
+          searchResponse = await handleTrafficQuery();
+        }
+        
+        // Combinar respuesta de Gemini con la búsqueda de lugares
+        if (searchResponse) {
+          return `${geminiResponse}\n\n${searchResponse}`;
+        }
+      }
+
+      // Retornar respuesta de Gemini (puede ser conversacional o incluir búsqueda de lugares)
+      return geminiResponse;
+    } catch (error) {
+      console.error('Error generando respuesta de IA:', error);
+      // Fallback: intentar búsqueda directa si Gemini falla
+      const lowerInput = userInput.toLowerCase();
+      if (lowerInput.includes('comer') || lowerInput.includes('restaurante')) {
+        return await handleRestaurantQuery();
+      } else if (lowerInput.includes('dormir') || lowerInput.includes('hotel')) {
+        return await handleAccommodationQuery();
+      }
+      return await handleGeneralQuery();
+    }
+  };
+
+  // Función para generar respuesta usando Gemini AI real
+  const generateGeminiResponse = async (userInput: string): Promise<string> => {
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      
+      if (!apiKey) {
+        console.warn('⚠️ Gemini API key no configurada, usando respuesta genérica');
+        toast.warning('Gemini API key no configurada. Configura NEXT_PUBLIC_GEMINI_API_KEY en .env.local');
+        return await handleGeneralQuery();
+      }
+
+      console.log('🤖 Llamando a Gemini AI real...');
+      const genAI = new GoogleGenerativeAI(apiKey);
+      // Usar gemini-2.5-flash según la documentación oficial de Google
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      // Construir contexto del viaje para Gemini
+      const tripContext = trip ? `
+        Información del viaje:
+        - Destino: ${trip.destination}
+        - Origen: ${trip.origin || 'No especificado'}
+        - Fechas: ${trip.dateI ? new Date(trip.dateI).toLocaleDateString() : 'No especificadas'} - ${trip.dateF ? new Date(trip.dateF).toLocaleDateString() : 'No especificadas'}
+        - Vehículo: ${trip.vehicle === 'auto' ? 'En auto' : trip.vehicle === 'avion' ? 'En avión' : trip.vehicle === 'caminando' ? 'Caminando' : 'En auto'}
+        - Presupuesto: ${trip.cost ? `$${trip.cost.toLocaleString()}` : 'No especificado'}
+      ` : '';
+
+      const locationContext = currentLocation 
+        ? `El usuario está ubicado en: ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}`
+        : 'No tengo acceso a la ubicación actual del usuario';
+
+      const tipsContext = tips.length > 0 
+        ? `Lugares ya guardados en el viaje:\n${tips.slice(0, 10).map(t => `- ${t.name} (${t.tipType})`).join('\n')}`
+        : 'Aún no hay lugares guardados en este viaje';
+
+      const prompt = `Eres un asistente de viajes inteligente y amigable llamado Gemini. Estás ayudando a un usuario durante su viaje.
+
+${tripContext}
+
+${locationContext}
+
+${tipsContext}
+
+Instrucciones importantes:
+- Responde de manera natural, conversacional y útil
+- Si el usuario pregunta sobre lugares para comer, restaurantes, dormir, hoteles, atracciones o gasolineras, sé breve y amigable. El sistema buscará automáticamente lugares cercanos después de tu respuesta
+- Para otras consultas (clima, recomendaciones generales, información sobre el destino, etc.), proporciona respuestas completas y útiles
+- Usa emojis cuando sea apropiado para hacer la conversación más amigable
+- Sé específico sobre el viaje del usuario cuando sea relevante
+- Si no tienes información precisa, sé honesto pero ofrece ayuda en otras áreas
+- Mantén un tono profesional pero amigable
+
+Pregunta del usuario: "${userInput}"
+
+Responde de manera natural, útil y conversacional (2-5 frases):`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      if (text) {
+        console.log('✅ Gemini AI respondió exitosamente:', text.substring(0, 100) + '...');
+        return text;
       } else {
+        console.warn('⚠️ Gemini no devolvió texto, usando fallback');
         return await handleGeneralQuery();
       }
     } catch (error) {
-      console.error('Error generando respuesta de IA:', error);
-      return 'Lo siento, hubo un problema procesando tu consulta. Intenta de nuevo.';
+      console.error('❌ Error llamando a Gemini:', error);
+      toast.error('Error al conectar con Gemini. Verifica tu API key y conexión.');
+      // Fallback a respuesta genérica si hay error
+      return await handleGeneralQuery();
     }
   };
 
   // Función para manejar consultas de restaurantes
-  const handleRestaurantQuery = async () => {
-    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte restaurantes.";
+  const handleRestaurantQuery = async (useDestination: boolean = false) => {
+    // Determinar qué ubicación usar: destino del viaje o ubicación actual
+    let searchLocation: {lat: number, lng: number} | null = null;
+    
+    if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
+      searchLocation = {
+        lat: trip.destinationLatitude,
+        lng: trip.destinationLongitude
+      };
+      console.log('🍽️ Buscando restaurantes en el DESTINO:', trip.destination, searchLocation);
+    } else if (currentLocation) {
+      searchLocation = currentLocation;
+      console.log('🍽️ Buscando restaurantes en ubicación ACTUAL:', searchLocation);
+    } else {
+      return "No puedo obtener tu ubicación para recomendarte restaurantes. Activa la ubicación o especifica el destino del viaje.";
+    }
     
     try {
+      // Obtener TODOS los place_ids de restaurantes existentes (de estado local Y base de datos)
+      const loadAllExistingRestaurantIds = async () => {
+        // Primero obtener de la BD para asegurarnos de tener todos
+        const tipsFromDB = await loadTipsFromDatabase();
+        const allRestaurantTips = [
+          ...tips.filter(tip => tip.tipType === 'restaurant'),
+          ...(tipsFromDB || []).filter((tip: any) => tip.tipType === 'restaurant')
+        ];
+        
+        // Obtener place_ids únicos
+        const placeIds = new Set<string>();
+        const nameLocationKeys = new Set<string>();
+        
+        allRestaurantTips.forEach(tip => {
+          const placeId = tip.place_id || tip.placeId;
+          if (placeId) {
+            placeIds.add(String(placeId).trim());
+          }
+          
+          // También crear clave nombre+ubicación como respaldo
+          const lat = tip.latitude || tip.location?.lat;
+          const lng = tip.longitude || tip.location?.lng;
+          if (tip.name && lat != null && lng != null) {
+            nameLocationKeys.add(`${tip.name.toLowerCase().trim()}_${Number(lat).toFixed(4)}_${Number(lng).toFixed(4)}`);
+          }
+        });
+        
+        console.log(`🍽️ Encontrados ${placeIds.size} place_ids únicos y ${nameLocationKeys.size} nombres+ubicaciones únicos de restaurantes existentes`);
+        
+        return { placeIds: Array.from(placeIds), nameLocationKeys: Array.from(nameLocationKeys) };
+      };
+      
+      const { placeIds, nameLocationKeys } = await loadAllExistingRestaurantIds();
+      
+      console.log(`🍽️ Buscando restaurantes, excluyendo ${placeIds.length} ya existentes`);
+      
       // Buscar lugares de forma asíncrona sin bloquear la respuesta
       findNearbyPlaces('restaurant', {
-        maxResults: 5,
+        maxResults: 5, // Limitar a 5 resultados finales
         maxRadius: 20,
         sortBy: 'rating',
         minRating: 4.0,
-        includePrice: true
+        includePrice: true,
+        excludePlaceIds: placeIds, // Excluir los que ya están
+        excludeNameLocations: nameLocationKeys, // También excluir por nombre+ubicación
+        location: searchLocation // Pasar la ubicación (destino o actual)
       }).then(places => {
         console.log('🍽️ Resultados de búsqueda de restaurantes:', places);
         if (places.length > 0) {
@@ -1870,16 +2448,49 @@ const isUserAdmin = trip &&
             tipIcon: '🍽️'
           }));
           console.log('🍽️ Agregando tips de restaurantes:', newTips);
+          
+          // Primero filtrar duplicados
           setTips(prev => {
-            const updated = [...prev, ...newTips];
+            const uniqueNewTips = filterDuplicateTips(prev, newTips);
+            if (uniqueNewTips.length === 0) {
+              console.log('⚠️ Todos los restaurantes ya están en tips');
+              return prev;
+            }
+            
+            // Agregar tips al estado primero (sin IDs de BD aún)
+            const updated = [...prev, ...uniqueNewTips];
+            
+            // Guardar tips en BD de forma asíncrona (sin bloquear la actualización del estado)
+            const tipsToSave = uniqueNewTips.filter(tip => !tip.id || typeof tip.id !== 'number');
+            if (tipsToSave.length > 0) {
+              Promise.all(tipsToSave.map(tip => saveTipToDatabase(tip))).then(savedTips => {
+                // Actualizar el estado con los IDs de BD
+                setTips(prevState => {
+                  const updatedState = prevState.map(tip => {
+                    const savedTip = savedTips.find(st => 
+                      st && (st.placeId || st.place_id) === (tip.place_id || tip.placeId)
+                    );
+                    if (savedTip && savedTip.id && (!tip.id || typeof tip.id !== 'number')) {
+                      return { ...tip, id: savedTip.id };
+                    }
+                    return tip;
+                  });
+                  return updatedState;
+                });
+              });
+            }
+            
             console.log('📝 Tips actualizados:', updated);
-            return updated;
-          });
           
           // Agregar pins al mapa con delay para asegurar que el mapa esté listo
+            if (uniqueNewTips.length > 0) {
           setTimeout(() => {
-            addTipPinsToMap(newTips);
+                addTipPinsToMap(uniqueNewTips);
           }, 500);
+            }
+            
+            return updated;
+          });
         } else {
           console.log('❌ No se encontraron restaurantes');
         }
@@ -1889,6 +2500,10 @@ const isUserAdmin = trip &&
         toast.error('Error buscando restaurantes. Intenta de nuevo.');
       });
       
+      const existingCount = placeIds.length;
+      if (existingCount > 0) {
+        return `🍽️ **Buscando otros restaurantes cerca de ti...**\n\nYa tienes ${existingCount} ${existingCount === 1 ? 'restaurante' : 'restaurantes'} en tu lista. Estoy buscando nuevos lugares diferentes para darte más opciones.\n\n💡 **Tip:** Te mostraré restaurantes que aún no están en tu lista.`;
+      }
       return `🍽️ **Buscando restaurantes cerca de ti...**\n\nEstoy buscando los mejores restaurantes en tu zona. Te mostraré opciones con calificaciones y precios para que puedas elegir dónde comer.\n\n💡 **Tip:** Puedes preguntarme por otros tipos de lugares como hoteles, atracciones o gasolineras.`;
     } catch (error) {
       return "Hubo un problema buscando restaurantes. Intenta de nuevo en un momento.";
@@ -1896,8 +2511,20 @@ const isUserAdmin = trip &&
   };
 
   // Función para manejar consultas de alojamiento
-  const handleAccommodationQuery = async () => {
-    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte alojamiento.";
+  const handleAccommodationQuery = async (useDestination: boolean = false) => {
+    // Determinar qué ubicación usar: destino del viaje o ubicación actual
+    let searchLocation: {lat: number, lng: number} | null = null;
+    
+    if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
+      searchLocation = {
+        lat: trip.destinationLatitude,
+        lng: trip.destinationLongitude
+      };
+    } else if (currentLocation) {
+      searchLocation = currentLocation;
+    } else {
+      return "No puedo obtener tu ubicación para recomendarte alojamiento. Activa la ubicación o especifica el destino del viaje.";
+    }
     
     try {
       // Buscar lugares de forma asíncrona sin bloquear la respuesta
@@ -1906,7 +2533,8 @@ const isUserAdmin = trip &&
         maxRadius: 20,
         sortBy: 'rating',
         minRating: 3.0,
-        includePrice: true
+        includePrice: true,
+        location: searchLocation
       }).then(places => {
         if (places.length > 0) {
           setRecommendedPlaces(places);
@@ -1918,8 +2546,17 @@ const isUserAdmin = trip &&
             tipType: 'lodging',
             tipIcon: '🏨'
           }));
-          setTips(prev => [...prev, ...newTips]);
-          addTipPinsToMap(newTips);
+          setTips(prev => {
+            const uniqueNewTips = filterDuplicateTips(prev, newTips);
+            if (uniqueNewTips.length === 0) {
+              console.log('⚠️ Todos los alojamientos ya están en tips');
+              return prev;
+            }
+            if (uniqueNewTips.length > 0) {
+              addTipPinsToMap(uniqueNewTips);
+            }
+            return [...prev, ...uniqueNewTips];
+          });
         }
       }).catch(error => {
         console.error('Error buscando alojamiento:', error);
@@ -1932,12 +2569,26 @@ const isUserAdmin = trip &&
   };
 
   // Función para manejar consultas de atracciones
-  const handleAttractionQuery = async () => {
-    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte atracciones.";
+  const handleAttractionQuery = async (useDestination: boolean = false) => {
+    // Determinar qué ubicación usar: destino del viaje o ubicación actual
+    let searchLocation: {lat: number, lng: number} | null = null;
+    
+    if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
+      searchLocation = {
+        lat: trip.destinationLatitude,
+        lng: trip.destinationLongitude
+      };
+    } else if (currentLocation) {
+      searchLocation = currentLocation;
+    } else {
+      return "No puedo obtener tu ubicación para recomendarte atracciones. Activa la ubicación o especifica el destino del viaje.";
+    }
     
     try {
       // Buscar lugares de forma asíncrona sin bloquear la respuesta
-      findNearbyPlaces('tourist_attraction').then(places => {
+      findNearbyPlaces('tourist_attraction', {
+        location: searchLocation
+      }).then(places => {
         if (places.length > 0) {
           const topPlaces = places.slice(0, 3);
           setRecommendedPlaces(topPlaces);
@@ -1949,8 +2600,17 @@ const isUserAdmin = trip &&
             tipType: 'tourist_attraction',
             tipIcon: '🎯'
           }));
-          setTips(prev => [...prev, ...newTips]);
-          addTipPinsToMap(newTips);
+          setTips(prev => {
+            const uniqueNewTips = filterDuplicateTips(prev, newTips);
+            if (uniqueNewTips.length === 0) {
+              console.log('⚠️ Todas las atracciones ya están en tips');
+              return prev;
+            }
+            if (uniqueNewTips.length > 0) {
+              addTipPinsToMap(uniqueNewTips);
+            }
+            return [...prev, ...uniqueNewTips];
+          });
         }
       }).catch(error => {
         console.error('Error buscando atracciones:', error);
@@ -1963,12 +2623,26 @@ const isUserAdmin = trip &&
   };
 
   // Función para manejar consultas de gasolineras
-  const handleGasStationQuery = async () => {
-    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte gasolineras.";
+  const handleGasStationQuery = async (useDestination: boolean = false) => {
+    // Determinar qué ubicación usar: destino del viaje o ubicación actual
+    let searchLocation: {lat: number, lng: number} | null = null;
+    
+    if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
+      searchLocation = {
+        lat: trip.destinationLatitude,
+        lng: trip.destinationLongitude
+      };
+    } else if (currentLocation) {
+      searchLocation = currentLocation;
+    } else {
+      return "No puedo obtener tu ubicación para recomendarte gasolineras. Activa la ubicación o especifica el destino del viaje.";
+    }
     
     try {
       // Buscar lugares de forma asíncrona sin bloquear la respuesta
-      findNearbyPlaces('gas_station').then(places => {
+      findNearbyPlaces('gas_station', {
+        location: searchLocation
+      }).then(places => {
         if (places.length > 0) {
           const topPlaces = places.slice(0, 3);
           setRecommendedPlaces(topPlaces);
@@ -1980,8 +2654,17 @@ const isUserAdmin = trip &&
             tipType: 'gas_station',
             tipIcon: '⛽'
           }));
-          setTips(prev => [...prev, ...newTips]);
-          addTipPinsToMap(newTips);
+          setTips(prev => {
+            const uniqueNewTips = filterDuplicateTips(prev, newTips);
+            if (uniqueNewTips.length === 0) {
+              console.log('⚠️ Todas las gasolineras ya están en tips');
+              return prev;
+            }
+            if (uniqueNewTips.length > 0) {
+              addTipPinsToMap(uniqueNewTips);
+            }
+            return [...prev, ...uniqueNewTips];
+          });
         }
       }).catch(error => {
         console.error('Error buscando gasolineras:', error);
@@ -2011,8 +2694,20 @@ const isUserAdmin = trip &&
   };
 
   // Función para manejar consultas del mejor restaurante (solo 1 resultado)
-  const handleBestRestaurantQuery = async () => {
-    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte el mejor restaurante.";
+  const handleBestRestaurantQuery = async (useDestination: boolean = false) => {
+    // Determinar qué ubicación usar: destino del viaje o ubicación actual
+    let searchLocation: {lat: number, lng: number} | null = null;
+    
+    if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
+      searchLocation = {
+        lat: trip.destinationLatitude,
+        lng: trip.destinationLongitude
+      };
+    } else if (currentLocation) {
+      searchLocation = currentLocation;
+    } else {
+      return "No puedo obtener tu ubicación para recomendarte el mejor restaurante. Activa la ubicación o especifica el destino del viaje.";
+    }
     
     try {
       findNearbyPlaces('restaurant', {
@@ -2020,7 +2715,8 @@ const isUserAdmin = trip &&
         maxRadius: 20,
         sortBy: 'rating',
         minRating: 4.5,
-        includePrice: true
+        includePrice: true,
+        location: searchLocation
       }).then(places => {
         if (places.length > 0) {
           setRecommendedPlaces(places);
@@ -2031,8 +2727,17 @@ const isUserAdmin = trip &&
             tipType: 'restaurant',
             tipIcon: '🍽️'
           }));
-          setTips(prev => [...prev, ...newTips]);
-          addTipPinsToMap(newTips);
+          setTips(prev => {
+            const uniqueNewTips = filterDuplicateTips(prev, newTips);
+            if (uniqueNewTips.length === 0) {
+              console.log('⚠️ El restaurante ya está en tips');
+              return prev;
+            }
+            if (uniqueNewTips.length > 0) {
+              addTipPinsToMap(uniqueNewTips);
+            }
+            return [...prev, ...uniqueNewTips];
+          });
         }
       }).catch(error => {
         console.error('Error buscando el mejor restaurante:', error);
@@ -2045,8 +2750,20 @@ const isUserAdmin = trip &&
   };
 
   // Función para manejar consultas del mejor alojamiento (solo 1 resultado)
-  const handleBestAccommodationQuery = async () => {
-    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte el mejor alojamiento.";
+  const handleBestAccommodationQuery = async (useDestination: boolean = false) => {
+    // Determinar qué ubicación usar: destino del viaje o ubicación actual
+    let searchLocation: {lat: number, lng: number} | null = null;
+    
+    if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
+      searchLocation = {
+        lat: trip.destinationLatitude,
+        lng: trip.destinationLongitude
+      };
+    } else if (currentLocation) {
+      searchLocation = currentLocation;
+    } else {
+      return "No puedo obtener tu ubicación para recomendarte el mejor alojamiento. Activa la ubicación o especifica el destino del viaje.";
+    }
     
     try {
       findNearbyPlaces('lodging', {
@@ -2054,7 +2771,8 @@ const isUserAdmin = trip &&
         maxRadius: 20,
         sortBy: 'rating',
         minRating: 4.5,
-        includePrice: true
+        includePrice: true,
+        location: searchLocation
       }).then(places => {
         if (places.length > 0) {
           setRecommendedPlaces(places);
@@ -2065,8 +2783,17 @@ const isUserAdmin = trip &&
             tipType: 'lodging',
             tipIcon: '🏨'
           }));
-          setTips(prev => [...prev, ...newTips]);
-          addTipPinsToMap(newTips);
+          setTips(prev => {
+            const uniqueNewTips = filterDuplicateTips(prev, newTips);
+            if (uniqueNewTips.length === 0) {
+              console.log('⚠️ El alojamiento ya está en tips');
+              return prev;
+            }
+            if (uniqueNewTips.length > 0) {
+              addTipPinsToMap(uniqueNewTips);
+            }
+            return [...prev, ...uniqueNewTips];
+          });
         }
       }).catch(error => {
         console.error('Error buscando el mejor alojamiento:', error);
@@ -2079,8 +2806,20 @@ const isUserAdmin = trip &&
   };
 
   // Función para manejar consultas de las mejores atracciones (5 resultados)
-  const handleBestAttractionsQuery = async () => {
-    if (!currentLocation) return "No puedo obtener tu ubicación actual para recomendarte las mejores atracciones.";
+  const handleBestAttractionsQuery = async (useDestination: boolean = false) => {
+    // Determinar qué ubicación usar: destino del viaje o ubicación actual
+    let searchLocation: {lat: number, lng: number} | null = null;
+    
+    if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
+      searchLocation = {
+        lat: trip.destinationLatitude,
+        lng: trip.destinationLongitude
+      };
+    } else if (currentLocation) {
+      searchLocation = currentLocation;
+    } else {
+      return "No puedo obtener tu ubicación para recomendarte las mejores atracciones. Activa la ubicación o especifica el destino del viaje.";
+    }
     
     try {
       findNearbyPlaces('tourist_attraction', {
@@ -2088,7 +2827,8 @@ const isUserAdmin = trip &&
         maxRadius: 20,
         sortBy: 'rating',
         minRating: 4.0,
-        includePrice: false
+        includePrice: false,
+        location: searchLocation
       }).then(places => {
         if (places.length > 0) {
           setRecommendedPlaces(places);
@@ -2099,8 +2839,17 @@ const isUserAdmin = trip &&
             tipType: 'tourist_attraction',
             tipIcon: '🎯'
           }));
-          setTips(prev => [...prev, ...newTips]);
-          addTipPinsToMap(newTips);
+          setTips(prev => {
+            const uniqueNewTips = filterDuplicateTips(prev, newTips);
+            if (uniqueNewTips.length === 0) {
+              console.log('⚠️ Todas las atracciones ya están en tips');
+              return prev;
+            }
+            if (uniqueNewTips.length > 0) {
+              addTipPinsToMap(uniqueNewTips);
+            }
+            return [...prev, ...uniqueNewTips];
+          });
         }
       }).catch(error => {
         console.error('Error buscando las mejores atracciones:', error);
@@ -2121,9 +2870,15 @@ const isUserAdmin = trip &&
       sortBy?: 'distance' | 'rating';
       minRating?: number;
       includePrice?: boolean;
+      excludePlaceIds?: string[]; // IDs de lugares a excluir
+      excludeNameLocations?: string[]; // Claves nombre+ubicación a excluir
+      location?: {lat: number, lng: number}; // Ubicación opcional (destino o ubicación actual)
     } = {}
   ): Promise<any[]> => {
-    if (!map || !currentLocation) {
+    // Usar la ubicación proporcionada, o la ubicación actual por defecto
+    const searchLocation = options.location || currentLocation;
+    
+    if (!map || !searchLocation) {
       console.error('❌ Mapa o ubicación no disponible');
       return [];
     }
@@ -2139,7 +2894,7 @@ const isUserAdmin = trip &&
     try {
       console.log('🔍 Búsqueda inteligente iniciada...', {
         placeType,
-        location: currentLocation,
+        location: searchLocation,
         maxResults,
         maxRadius,
         sortBy,
@@ -2149,35 +2904,67 @@ const isUserAdmin = trip &&
       
       const placesService = new window.google.maps.places.PlacesService(map);
       
+      // Si hay lugares a excluir, buscar más resultados para tener opciones
+      const searchLimit = options.excludePlaceIds && options.excludePlaceIds.length > 0
+        ? Math.max(maxResults * 2, 20) // Buscar el doble o mínimo 20 si hay exclusiones
+        : maxResults;
+      
       // Intentar búsqueda con radio progresivo si no encuentra resultados
       const searchRadii = [5, 10, 15, 20]; // km
       let allResults: any[] = [];
       
       for (const radius of searchRadii) {
-        if (allResults.length >= maxResults) break;
+        if (allResults.length >= searchLimit) break;
         
         console.log(`🔍 Buscando en radio de ${radius}km...`);
         
-        const request = {
-          location: new window.google.maps.LatLng(currentLocation.lat, currentLocation.lng),
+        const request: any = {
+          location: new window.google.maps.LatLng(searchLocation.lat, searchLocation.lng),
           type: placeType,
           rankBy: window.google.maps.places.RankBy.DISTANCE
         };
         
+        // Buscar resultados con paginación para obtener más opciones
         const results = await new Promise<any[]>((resolve) => {
-          placesService.nearbySearch(request, (results: any[], status: any) => {
-            if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
-              resolve(results);
+          const allPageResults: any[] = [];
+          let paginationObj: any = null;
+          
+          const performSearch = (nextPage?: any) => {
+            const searchRequest = nextPage ? { ...request, pagination: nextPage } : request;
+            
+            placesService.nearbySearch(searchRequest, (pageResults: any[], status: any, pagination?: any) => {
+              if (status === window.google.maps.places.PlacesServiceStatus.OK && pageResults) {
+                allPageResults.push(...pageResults);
+                console.log(`📄 Página: ${allPageResults.length} resultados acumulados de ${pageResults.length} en esta página`);
+                
+                // Si hay más páginas y aún necesitamos resultados, continuar
+                if (pagination && pagination.hasNextPage && allPageResults.length < searchLimit) {
+                  paginationObj = pagination;
+                  setTimeout(() => {
+                    pagination.nextPage();
+                  }, 100);
             } else {
-              resolve([]);
-            }
-          });
+                  resolve(allPageResults);
+                }
+              } else if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+                console.log(`⚠️ No se encontraron resultados en radio de ${radius}km`);
+                resolve(allPageResults);
+              } else {
+                console.log(`⚠️ Estado de búsqueda: ${status}`);
+                resolve(allPageResults);
+              }
+            });
+          };
+          
+          performSearch();
         });
         
         if (results.length > 0) {
           console.log(`✅ Encontrados ${results.length} lugares en ${radius}km`);
           allResults = [...allResults, ...results];
-          break; // Si encontramos resultados, no necesitamos expandir más
+          if (allResults.length >= searchLimit) {
+            break; // Si ya tenemos suficientes resultados, no necesitamos expandir más
+          }
         }
       }
       
@@ -2195,14 +2982,15 @@ const isUserAdmin = trip &&
         };
         
         const distance = calculateDistance(
-          currentLocation.lat,
-          currentLocation.lng,
+          searchLocation.lat,
+          searchLocation.lng,
           placeLocation.lat,
           placeLocation.lng
         );
         
         const processedPlace = {
           id: place.place_id,
+          place_id: place.place_id, // Mantener place_id explícitamente
           name: place.name,
           rating: place.rating || 0,
           types: place.types || [],
@@ -2227,6 +3015,43 @@ const isUserAdmin = trip &&
         filteredPlaces = processedPlaces.filter(place => place.rating >= minRating);
       }
       
+      // Excluir lugares que ya están en tips (por place_id y/o nombre+ubicación)
+      const beforeExclude = filteredPlaces.length;
+      if ((options.excludePlaceIds && options.excludePlaceIds.length > 0) || 
+          (options.excludeNameLocations && options.excludeNameLocations.length > 0)) {
+        const excludePlaceIdSet = options.excludePlaceIds ? new Set(options.excludePlaceIds.map(id => String(id).trim())) : new Set<string>();
+        const excludeNameLocationSet = options.excludeNameLocations ? new Set(options.excludeNameLocations) : new Set<string>();
+        
+        filteredPlaces = filteredPlaces.filter(place => {
+          // Primero verificar por place_id
+          const placeId = String(place.place_id || place.id || '').trim();
+          if (placeId && excludePlaceIdSet.has(placeId)) {
+            console.log(`🚫 Excluyendo lugar ya existente por place_id: ${place.name} (place_id: ${placeId})`);
+            return false;
+          }
+          
+          // Si no hay place_id o no coincide, verificar por nombre+ubicación
+          const lat = place.location?.lat;
+          const lng = place.location?.lng;
+          if (place.name && lat != null && lng != null) {
+            const nameLocationKey = `${place.name.toLowerCase().trim()}_${Number(lat).toFixed(4)}_${Number(lng).toFixed(4)}`;
+            if (excludeNameLocationSet.has(nameLocationKey)) {
+              console.log(`🚫 Excluyendo lugar ya existente por nombre+ubicación: ${place.name} (${nameLocationKey})`);
+              return false;
+            }
+          }
+          
+          return true;
+        });
+        console.log(`🚫 Excluidos ${beforeExclude - filteredPlaces.length} lugares ya existentes en tips (de ${beforeExclude} totales)`);
+        
+        // Si después de excluir no tenemos suficientes resultados, buscar más
+        if (filteredPlaces.length < maxResults && allResults.length > 0) {
+          console.log(`⚠️ Solo quedan ${filteredPlaces.length} lugares después de excluir, necesitamos más resultados`);
+          // Ya estamos buscando más resultados con searchLimit, así que esto está cubierto
+        }
+      }
+      
       // Ordenar según criterio especificado
       if (sortBy === 'rating') {
         filteredPlaces.sort((a, b) => b.rating - a.rating);
@@ -2234,10 +3059,13 @@ const isUserAdmin = trip &&
         filteredPlaces.sort((a, b) => a.distance - b.distance);
       }
       
-      // Limitar resultados
-      const finalResults = filteredPlaces.slice(0, maxResults);
+      // Limitar resultados (si se excluyeron lugares, mantener el límite original)
+      const limit = options.excludePlaceIds && options.excludePlaceIds.length > 0 
+        ? Math.min(maxResults, filteredPlaces.length) 
+        : maxResults;
+      const finalResults = filteredPlaces.slice(0, limit);
       
-      console.log(`🎯 ${finalResults.length} lugares finales seleccionados:`, 
+      console.log(`🎯 ${finalResults.length} lugares finales seleccionados (de ${filteredPlaces.length} disponibles):`, 
         finalResults.map(p => `${p.name} (${p.distanceText}, ⭐${p.rating})`));
       
       return finalResults;
@@ -2309,9 +3137,9 @@ const isUserAdmin = trip &&
     }
   };
 
-  // Función para agregar pins de tips al mapa
-  const addTipPinsToMap = async (tips: any[]) => {
-    console.log('🗺️ addTipPinsToMap llamada con:', tips);
+  // Función para agregar pins de tips al mapa (solo crea pins, no guarda en BD)
+  const addTipPinsToMap = (tipsToAdd: any[]) => {
+    console.log('🗺️ addTipPinsToMap llamada con:', tipsToAdd);
     console.log('🗺️ Mapa disponible:', !!map);
     
     if (!map) {
@@ -2319,31 +3147,45 @@ const isUserAdmin = trip &&
       return;
     }
     
-    // Limpiar pins de tips anteriores
-    tipPins.forEach(pin => pin.setMap(null));
-    const newTipPins: any[] = [];
-    
-    console.log('🗺️ Agregando pins de tips al mapa...');
-    for (const [index, tip] of tips.entries()) {
-      // Guardar tip en la base de datos
-      const savedTip = await saveTipToDatabase(tip);
-      if (savedTip) {
-        // Usar el ID de la base de datos
-        tip.id = savedTip.id;
-        console.log('✅ Tip guardado con ID:', savedTip.id);
+    // Verificar qué tips ya tienen pins para evitar duplicados
+    setTipPins(prevPins => {
+      const existingPinTitles = new Set(
+        prevPins.map(pin => pin.title).filter(title => title != null)
+      );
+      
+      // Filtrar tips que ya tienen pins
+      const uniqueTipsToAdd = tipsToAdd.filter(tip => {
+        const pinTitle = `${tip.tipIcon} ${tip.name}`;
+        if (existingPinTitles.has(pinTitle)) {
+          console.log(`⚠️ Pin ya existe para: ${tip.name}`);
+          return false;
+        }
+        return true;
+      });
+      
+      if (uniqueTipsToAdd.length === 0) {
+        console.log('⚠️ Todos los tips ya tienen pins en el mapa');
+        return prevPins;
       }
+      
+      // Crear pins solo para los tips únicos
+      const newTipPins: any[] = [];
+      
+      uniqueTipsToAdd.forEach((tip, index) => {
+        // Crear el pin en el mapa
       const marker = new window.google.maps.Marker({
         position: tip.location,
         map: map,
         title: `${tip.tipIcon} ${tip.name}`,
         icon: {
-          url: 'https://maps.google.com/mapfiles/ms/icons/info.png', // Icono de exclamación
+            url: 'https://maps.google.com/mapfiles/ms/icons/info.png',
           scaledSize: new window.google.maps.Size(32, 32),
           anchor: new window.google.maps.Point(16, 32)
         },
         animation: window.google.maps.Animation.DROP
       });
       
+        const tipId = tip.id || tip.place_id || '';
       const infoWindow = new window.google.maps.InfoWindow({
         content: `
           <div style="padding: 10px; max-width: 250px;">
@@ -2351,15 +3193,15 @@ const isUserAdmin = trip &&
               ${tip.tipIcon} ${tip.name}
             </h3>
             <p style="margin: 4px 0; color: #666; font-size: 14px;">
-              📍 ${tip.vicinity}
+                📍 ${tip.vicinity || tip.address || 'Dirección no disponible'}
             </p>
             <p style="margin: 4px 0; color: #666; font-size: 14px;">
-              ⭐ ${tip.rating}/5 • ${tip.distanceText}
+                ⭐ ${tip.rating || 0}/5 • ${tip.distanceText || 'Distancia no disponible'}
             </p>
             <p style="margin: 4px 0; color: #666; font-size: 12px;">
-              🏷️ ${tip.types.join(', ')}
+                🏷️ ${(tip.types || []).join(', ') || 'Sin categoría'}
             </p>
-            <button onclick="startTripToTip('${tip.id}')" 
+              <button onclick="startTripToTip('${tipId}')" 
                     style="background: #1976d2; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; margin-top: 8px;">
               🚗 Iniciar viaje
             </button>
@@ -2373,11 +3215,11 @@ const isUserAdmin = trip &&
       
       newTipPins.push(marker);
       console.log(`🗺️ Pin ${index + 1} agregado:`, tip.name);
-    }
+      });
     
     console.log('🗺️ Total pins de tips creados:', newTipPins.length);
-    setTipPins(newTipPins);
-    console.log('🗺️ Estado de tipPins actualizado');
+      return [...prevPins, ...newTipPins];
+    });
   };
 
   // Función para iniciar viaje a un tip
@@ -2408,11 +3250,21 @@ const isUserAdmin = trip &&
     
     // Iniciar navegación al tip
     if (directionsService && directionsRenderer) {
+      // Obtener coordenadas del tip (pueden estar en location o directamente)
+      const tipLat = tip.location?.lat || tip.latitude;
+      const tipLng = tip.location?.lng || tip.longitude;
+      
+      if (!tipLat || !tipLng) {
+        console.error('❌ Tip no tiene coordenadas válidas:', tip);
+        toast.error('El tip no tiene coordenadas válidas');
+        return;
+      }
+      
       const request = {
         origin: currentLocation,
         destination: {
-          lat: tip.latitude,
-          lng: tip.longitude
+          lat: Number(tipLat),
+          lng: Number(tipLng)
         },
         travelMode: window.google.maps.TravelMode.DRIVING,
         provideRouteAlternatives: false,
@@ -2497,9 +3349,103 @@ const isUserAdmin = trip &&
     };
   }, [startTripToTip, continueMainTrip]);
 
+  // Función para filtrar tips duplicados basándose en el ID del lugar
+  const filterDuplicateTips = (existingTips: any[], newTips: any[]): any[] => {
+    if (newTips.length === 0) return [];
+    if (existingTips.length === 0) return newTips;
+    
+    // Crear un set con los place_ids de los tips existentes (más confiable)
+    const existingPlaceIds = new Set(
+      existingTips
+        .map(tip => {
+          const placeId = tip.place_id || tip.placeId;
+          return placeId ? String(placeId) : null;
+        })
+        .filter(id => id != null)
+    );
+    
+    // Crear un set con los IDs de base de datos de los tips existentes
+    const existingDbIds = new Set(
+      existingTips
+        .map(tip => tip.id && typeof tip.id === 'number' ? String(tip.id) : null)
+        .filter(id => id != null)
+    );
+    
+    // También crear un set con nombres y ubicaciones para comparación adicional
+    const existingNameLocation = new Set(
+      existingTips
+        .map(tip => {
+          const lat = tip.location?.lat || tip.latitude;
+          const lng = tip.location?.lng || tip.longitude;
+          if (tip.name && lat != null && lng != null) {
+            return `${tip.name.toLowerCase().trim()}_${Number(lat).toFixed(4)}_${Number(lng).toFixed(4)}`;
+          }
+          return null;
+        })
+        .filter(key => key != null)
+    );
+    
+    // Filtrar los nuevos tips para evitar duplicados
+    const seenPlaceIds = new Set<string>();
+    const seenNames = new Set<string>();
+    
+    const uniqueNewTips = newTips.filter(tip => {
+      // Verificar por ID de base de datos primero (si el tip ya fue guardado)
+      if (tip.id && typeof tip.id === 'number') {
+        const tipIdStr = String(tip.id);
+        if (existingDbIds.has(tipIdStr)) {
+          console.log(`⚠️ Tip duplicado filtrado por ID de BD: ${tip.name} (ID: ${tip.id})`);
+          return false;
+        }
+        if (seenPlaceIds.has(tipIdStr)) {
+          console.log(`⚠️ Tip duplicado dentro de nuevos tips (por ID BD): ${tip.name}`);
+          return false;
+        }
+        seenPlaceIds.add(tipIdStr);
+      }
+      
+      // Verificar por place_id (más confiable para Google Places)
+      const tipPlaceId = tip.place_id || tip.placeId;
+      if (tipPlaceId) {
+        const tipPlaceIdStr = String(tipPlaceId);
+        if (existingPlaceIds.has(tipPlaceIdStr)) {
+          console.log(`⚠️ Tip duplicado filtrado por place_id: ${tip.name} (place_id: ${tipPlaceId})`);
+          return false;
+        }
+        if (seenPlaceIds.has(tipPlaceIdStr)) {
+          console.log(`⚠️ Tip duplicado dentro de nuevos tips (por place_id): ${tip.name}`);
+          return false;
+        }
+        seenPlaceIds.add(tipPlaceIdStr);
+      }
+      
+      // Si no hay place_id, verificar por nombre y ubicación
+      const lat = tip.location?.lat || tip.latitude;
+      const lng = tip.location?.lng || tip.longitude;
+      if (!tipPlaceId && tip.name && lat != null && lng != null) {
+        const nameLocationKey = `${tip.name.toLowerCase().trim()}_${Number(lat).toFixed(4)}_${Number(lng).toFixed(4)}`;
+        if (existingNameLocation.has(nameLocationKey)) {
+          console.log(`⚠️ Tip duplicado filtrado por nombre/ubicación: ${tip.name}`);
+          return false;
+        }
+        if (seenNames.has(nameLocationKey)) {
+          console.log(`⚠️ Tip duplicado dentro de nuevos tips (por nombre/ubicación): ${tip.name}`);
+          return false;
+        }
+        seenNames.add(nameLocationKey);
+      }
+      
+      return true;
+    });
+    
+    console.log(`✅ Filtrados ${newTips.length - uniqueNewTips.length} tips duplicados de ${newTips.length} totales`);
+    return uniqueNewTips;
+  };
+
   // Función para limpiar tips
   const clearTips = async () => {
-    if (!trip?.id || tips.length === 0) {
+    if (!trip?.id) {
+      // Si no hay trip, solo limpiar estado local
       setTips([]);
       tipPins.forEach(pin => pin.setMap(null));
       setTipPins([]);
@@ -2508,18 +3454,14 @@ const isUserAdmin = trip &&
     }
 
     try {
-      // Eliminar todos los tips de la base de datos
-      const deletePromises = tips.map(tip => {
-        if (tip.id) {
-          return deleteTipFromDatabase(tip.id.toString());
-        }
-        return Promise.resolve(true);
-      });
-
-      const results = await Promise.all(deletePromises);
-      const successCount = results.filter(r => r === true).length;
+      console.log(`🗑️ Eliminando todos los tips del viaje ${trip.id} de la base de datos...`);
       
-      console.log(`✅ ${successCount} tips eliminados de la base de datos`);
+      // Usar el endpoint que elimina todos los tips del viaje de una vez
+      const response = await api.deleteAllTipsByTrip(trip.id.toString());
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Todos los tips eliminados de la base de datos:', data);
 
       // Limpiar del estado local
       setTips([]);
@@ -2527,10 +3469,21 @@ const isUserAdmin = trip &&
       setTipPins([]);
       setShowTipsList(false);
       
-      toast.success(`Se eliminaron ${successCount} tips`);
+        toast.success('Se eliminaron todos los tips');
+      } else {
+        const errorData = await response.json().catch(() => ({ message: 'Error desconocido' }));
+        console.error('❌ Error eliminando tips:', errorData);
+        toast.error(`Error al eliminar tips: ${errorData.message || 'Error desconocido'}`);
+        
+        // Limpiar del estado local de todos modos
+        setTips([]);
+        tipPins.forEach(pin => pin.setMap(null));
+        setTipPins([]);
+        setShowTipsList(false);
+      }
     } catch (error) {
       console.error('❌ Error eliminando tips:', error);
-      toast.error('Error al eliminar algunos tips');
+      toast.error('Error al eliminar tips. Intenta de nuevo.');
       
       // Limpiar del estado local de todos modos
       setTips([]);
@@ -2543,6 +3496,39 @@ const isUserAdmin = trip &&
   // Función para guardar tip en la base de datos
   const saveTipToDatabase = async (tip: any) => {
     try {
+      // Verificar si ya existe un tip con el mismo place_id en el estado local
+      const existingTip = tips.find(t => {
+        const tPlaceId = t.place_id || t.placeId;
+        const tipPlaceId = tip.place_id || tip.placeId;
+        return tPlaceId && tipPlaceId && tPlaceId === tipPlaceId;
+      });
+      
+      if (existingTip && existingTip.id && typeof existingTip.id === 'number') {
+        console.log('⚠️ Tip ya existe en estado local, no se guardará duplicado:', existingTip.id);
+        return existingTip; // Retornar el tip existente con su ID de la base de datos
+      }
+      
+      // Verificar también en la base de datos antes de crear
+      const tipsFromDB = await loadTipsFromDatabase();
+      const existingTipInDB = tipsFromDB.find((dbTip: any) => {
+        const dbPlaceId = dbTip.placeId || dbTip.place_id;
+        const tipPlaceId = tip.place_id || tip.placeId;
+        return dbPlaceId && tipPlaceId && dbPlaceId === tipPlaceId;
+      });
+      
+      if (existingTipInDB) {
+        console.log('⚠️ Tip ya existe en base de datos, no se guardará duplicado:', existingTipInDB.id);
+        // Actualizar el estado local con el tip de la BD
+        setTips(prev => {
+          const alreadyExists = prev.some(t => t.id === existingTipInDB.id);
+          if (!alreadyExists) {
+            return [...prev, existingTipInDB];
+          }
+          return prev;
+        });
+        return existingTipInDB;
+      }
+
       const tipData = {
         name: tip.name,
         description: tip.description || '',
@@ -2553,7 +3539,8 @@ const isUserAdmin = trip &&
         distanceKm: tip.distanceKm || tip.distance || 0,
         tipType: tip.tipType,
         tipIcon: tip.tipIcon,
-        types: tip.types || []
+        types: tip.types || [],
+        placeId: tip.place_id || tip.id // Guardar place_id para poder detectar duplicados
       };
 
       console.log('💾 Intentando guardar tip:', tipData);
@@ -2758,7 +3745,8 @@ const isUserAdmin = trip &&
     return null;
   }
 
-  if (!trip && hasAttemptedLoad && !loading) {
+  if (!trip) {
+    if (hasAttemptedLoad && !loading) {
     return (
       <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: '#FAFAFA' }}>
         <AppBar position="static" elevation={0} sx={{ bgcolor: '#E3F2FD', color: '#424242', borderBottom: '1px solid #BBDEFB' }}>
@@ -2782,6 +3770,8 @@ const isUserAdmin = trip &&
         </Container>
       </Box>
     );
+    }
+    return null;
   }
 
   return (
@@ -2831,9 +3821,9 @@ const isUserAdmin = trip &&
           </Alert>
         )}
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+        <Box sx={{ display: 'flex', gap: 3, px: 3 }}>
           {/* Información del Viaje y Billeteras */}
-          <Box sx={{ flex: '1 1 500px', minWidth: 400 }}>
+          <Box sx={{ flex: '0 0 33.33%', maxWidth: '33.33%' }}>
             <Card sx={{ mb: 3, boxShadow: 'none', border: '1px solid #E0E0E0', borderRadius: 2 }}>
               <CardContent sx={{ p: 3 }}>
                 <Box display="flex" alignItems="center" gap={2} mb={2}>
@@ -2875,30 +3865,124 @@ const isUserAdmin = trip &&
                 )}
 
                 {/* Detalles del viaje */}
-                <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Schedule sx={{ color: '#666', fontSize: 18 }} />
-                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#424242' }}>
-                      {formatDate(trip.dateI)} - {formatDate(trip.dateF)}
-                    </Typography>
-                  </Box>
-
-                  <Box display="flex" alignItems="center" gap={1}>
-                    {getVehicleIcon(trip.vehicle)}
-                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#424242' }}>
-                      {trip.vehicle === 'auto' ? 'En auto' : 
-                       trip.vehicle === 'avion' ? 'En avión' : 
-                       trip.vehicle === 'caminando' ? 'Caminando' : 'En auto'}
-                    </Typography>
-                  </Box>
-
-                  {trip.cost > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 1 }}>
                     <Box display="flex" alignItems="center" gap={1}>
+                      <Schedule sx={{ color: '#666', fontSize: 18 }} />
                       <Typography variant="body2" sx={{ fontWeight: 500, color: '#424242' }}>
-                        Presupuesto: ${trip.cost.toLocaleString()}
+                        {formatDate(trip.dateI)} - {formatDate(trip.dateF)}
+                      </Typography>
+                      {isUserAdmin && (
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            setEditDateI(trip.dateI);
+                            setEditDateF(trip.dateF);
+                            setOpenEditDates(true);
+                          }}
+                          sx={{
+                            color: '#1976D2',
+                            '&:hover': { bgcolor: 'rgba(25, 118, 210, 0.1)' }
+                          }}
+                        >
+                          <Edit sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      )}
+                    </Box>
+
+                    <Box display="flex" alignItems="center" gap={1}>
+                      {getVehicleIcon(trip.vehicle)}
+                      <Typography variant="body2" sx={{ fontWeight: 500, color: '#424242' }}>
+                        {trip.vehicle === 'auto' ? 'En auto' : 
+                         trip.vehicle === 'avion' ? 'En avión' : 
+                         trip.vehicle === 'caminando' ? 'Caminando' : 'En auto'}
                       </Typography>
                     </Box>
-                  )}
+
+                    {trip.cost > 0 && (
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#424242' }}>
+                          Presupuesto: ${trip.cost.toLocaleString()}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                  
+                  {/* Origen y Destino con botones de edición */}
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
+                    {trip.origin && (
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Place sx={{ color: '#4CAF50', fontSize: 18 }} />
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#424242' }}>
+                          Origen: {trip.origin}
+                        </Typography>
+                        {isUserAdmin && (
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setEditOrigin(trip.origin || '');
+                              setEditDestination(trip.destination);
+                              // Si hay coordenadas, establecerlas también
+                              if (trip.originLatitude && trip.originLongitude) {
+                                setEditOriginCoords({
+                                  lat: trip.originLatitude,
+                                  lng: trip.originLongitude
+                                });
+                              }
+                              if (trip.destinationLatitude && trip.destinationLongitude) {
+                                setEditDestinationCoords({
+                                  lat: trip.destinationLatitude,
+                                  lng: trip.destinationLongitude
+                                });
+                              }
+                              setOpenEditLocations(true);
+                            }}
+                            sx={{
+                              color: '#1976D2',
+                              '&:hover': { bgcolor: 'rgba(25, 118, 210, 0.1)' }
+                            }}
+                          >
+                            <Edit sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        )}
+                      </Box>
+                    )}
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Place sx={{ color: '#F44336', fontSize: 18 }} />
+                      <Typography variant="body2" sx={{ fontWeight: 500, color: '#424242' }}>
+                        Destino: {trip.destination}
+                      </Typography>
+                      {isUserAdmin && (
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            setEditOrigin(trip.origin || '');
+                            setEditDestination(trip.destination);
+                            // Si hay coordenadas, establecerlas también
+                            if (trip.originLatitude && trip.originLongitude) {
+                              setEditOriginCoords({
+                                lat: trip.originLatitude,
+                                lng: trip.originLongitude
+                              });
+                            }
+                            if (trip.destinationLatitude && trip.destinationLongitude) {
+                              setEditDestinationCoords({
+                                lat: trip.destinationLatitude,
+                                lng: trip.destinationLongitude
+                              });
+                            }
+                            setOpenEditLocations(true);
+                          }}
+                          sx={{
+                            color: '#1976D2',
+                            '&:hover': { bgcolor: 'rgba(25, 118, 210, 0.1)' }
+                          }}
+                        >
+                          <Edit sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      )}
+                    </Box>
+                  </Box>
                 </Box>
 
                 {/* Código de invitación */}
@@ -3204,6 +4288,7 @@ const isUserAdmin = trip &&
                                         <TableCell sx={{ fontWeight: 600 }}>Fecha</TableCell>
                                         <TableCell sx={{ fontWeight: 600 }}>Tipo</TableCell>
                                         <TableCell sx={{ fontWeight: 600 }}>Creado por</TableCell>
+                                        <TableCell sx={{ fontWeight: 600, width: 80 }}>Acciones</TableCell>
                                       </TableRow>
                                     </TableHead>
                                     <TableBody>
@@ -3242,6 +4327,18 @@ const isUserAdmin = trip &&
                                           <TableCell>
                                             {purchase.createdByName || 'N/A'}
                                           </TableCell>
+                                          <TableCell>
+                                            <IconButton
+                                              size="small"
+                                              color="error"
+                                              onClick={() => handleDeletePurchase(purchase.id)}
+                                              sx={{
+                                                '&:hover': { bgcolor: 'rgba(244, 67, 54, 0.1)' }
+                                              }}
+                                            >
+                                              <Delete sx={{ fontSize: 18 }} />
+                                            </IconButton>
+                                          </TableCell>
                                         </TableRow>
                                       ))}
                                     </TableBody>
@@ -3257,10 +4354,98 @@ const isUserAdmin = trip &&
                 </Box>
               </CardContent>
             </Card>
+
+            {/* Lista de Participantes */}
+            <Box sx={{ width: '100%' }}>
+              <Paper sx={{ boxShadow: 'none', border: '1px solid #E0E0E0', borderRadius: 2 }}>
+                <Box sx={{ p: 3 }}>
+                  <Box display="flex" alignItems="center" gap={2} mb={2}>
+                    <People sx={{ color: '#1976D2', fontSize: 24 }} />
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
+                      Miembros del Viaje ({participants.length})
+                    </Typography>
+                  </Box>
+
+                  {participants.length === 0 ? (
+                    <Box sx={{ textAlign: 'center', py: 3 }}>
+                      <People sx={{ fontSize: 48, color: '#BDBDBD', mb: 1.5 }} />
+                      <Typography variant="h6" sx={{ mb: 1.5, color: '#666' }}>
+                        No hay miembros en este viaje
+                      </Typography>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<PersonAdd />}
+                        onClick={() => router.push(`/trip/${tripId}/add-users`)}
+                        sx={{
+                          bgcolor: '#4CAF50',
+                          '&:hover': { bgcolor: '#388E3C' },
+                          textTransform: 'none',
+                          borderRadius: 2,
+                        }}
+                      >
+                        Agregar Miembros
+                      </Button>
+                    </Box>
+                  ) : (
+                    <List>
+                      {participants.map((p) => (
+                        <ListItem key={p.id} sx={{ py: 1 }}>
+                        <ListItemAvatar>
+                        <Avatar src={p.profilePicture || undefined} sx={{ width: 40, height: 40 }}>
+                          {p.name?.[0] || 'U'}
+                        </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={p.name}
+                          secondary={p.email}
+                          primaryTypographyProps={{ sx: { fontWeight: 500, color: '#424242' } }}
+                          secondaryTypographyProps={{ sx: { color: '#666', fontSize: '0.875rem' } }}
+                        />
+                        {isUserAdmin && (
+                        <>
+                        {/* Botón eliminar participante */}
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRemoveParticipant(p.id)}
+                          sx={{ color: '#F44336' }}
+                        >
+                      <Delete sx={{ fontSize: 18 }} />
+                        </IconButton>
+                      {/* Botón agregar como admin */}
+                      {!trip?.adminIds?.includes(p.id) && (
+                      <IconButton
+                        size="small"
+                        onClick={() => handleAddAdmin(p.id)}
+                        sx={{ color: '#1976D2' }}
+                      >
+                        <PersonAdd sx={{ fontSize: 18 }} />
+                        </IconButton>
+                        )}
+                        {/* Botón quitar admin */}
+                        {trip?.adminIds?.includes(p.id) && (
+                          <IconButton
+                          size="small"
+                          onClick={() => handleRemoveAdmin(p.id)}
+                          sx={{ color: '#FF9800' }}
+                          >
+                            <Clear sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        )}
+                      </>
+                      )}
+                    </ListItem>
+                  ))}
+                </List>
+
+                )}
+              </Box>
+            </Paper>
+          </Box>
           </Box>
 
           {/* Mapa */}
-          <Box sx={{ flex: '1 1 400px', minWidth: 400, width: '100%' }}>
+          <Box sx={{ flex: '0 0 66.67%', maxWidth: '66.67%', width: '100%' }}>
             <Card sx={{ mb: 3, boxShadow: 'none', border: '1px solid #E0E0E0', borderRadius: 2 }}>
               <CardContent sx={{ p: 0 }}>
                 <Box sx={{ p: 2, borderBottom: '1px solid #E0E0E0' }}>
@@ -3396,6 +4581,146 @@ const isUserAdmin = trip &&
                   }}
                 />
                 
+                {/* Lista de Lugares Recomendados */}
+                {recommendedPlaces.length > 0 && (
+                  <Box sx={{ width: '100%', mt: 3 }}>
+                    <Paper sx={{ 
+                      bgcolor: '#E8F5E9',
+                      border: '1px solid #C8E6C9',
+                      borderRadius: 2,
+                      boxShadow: 'none',
+                      p: 2
+                    }}>
+                      <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+                        <Box sx={{ 
+                          bgcolor: 'rgba(46, 125, 50, 0.1)', 
+                          borderRadius: '50%', 
+                          p: 0.75,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <Place sx={{ fontSize: 20, color: '#2E7D32' }} />
+                        </Box>
+                        <Box>
+                          <Typography variant="h6" sx={{ fontWeight: 600, color: '#2E7D32' }}>
+                            Lugares Recomendados
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: '#4CAF50' }}>
+                            Basados en tu consulta a Gemini
+                          </Typography>
+                        </Box>
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        {recommendedPlaces.map((place, index) => (
+                          <Paper key={place.id} sx={{ 
+                            width: '100%',
+                            bgcolor: 'white',
+                            border: selectedPlace?.id === place.id ? '2px solid #4CAF50' : '1px solid #E0E0E0',
+                            borderRadius: 2,
+                            boxShadow: 'none',
+                            cursor: 'pointer',
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                              transform: 'translateY(-2px)',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                            }
+                          }}
+                          onClick={() => setSelectedPlace(place)}
+                          >
+                            <Box sx={{ p: 1.5 }}>
+                              <Box display="flex" alignItems="center" gap={1.5} mb={1}>
+                                <Box sx={{ 
+                                  bgcolor: '#E8F5E9', 
+                                  borderRadius: 1, 
+                                  p: 0.75,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}>
+                                  {place.type === 'restaurant' && <Typography sx={{ fontSize: 18 }}>🍽️</Typography>}
+                                  {place.type === 'lodging' && <Typography sx={{ fontSize: 18 }}>🏨</Typography>}
+                                  {place.type === 'tourist_attraction' && <Typography sx={{ fontSize: 18 }}>🎯</Typography>}
+                                  {place.type === 'gas_station' && <Typography sx={{ fontSize: 18 }}>⛽</Typography>}
+                                </Box>
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                  <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242', mb: 0.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {place.name}
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                                    {place.vicinity}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                              
+                              <Box display="flex" alignItems="center" gap={1.5} mt={1}>
+                                <Box display="flex" alignItems="center" gap={0.5}>
+                                  <Typography sx={{ fontSize: 14 }}>⭐</Typography>
+                                  <Typography variant="caption" sx={{ color: '#424242', fontWeight: 500 }}>
+                                    {place.rating}/5
+                                  </Typography>
+                                </Box>
+                                <Chip
+                                  label={place.type === 'restaurant' ? 'Restaurante' :
+                                         place.type === 'lodging' ? 'Alojamiento' :
+                                         place.type === 'tourist_attraction' ? 'Atracción' : 'Gasolinera'}
+                                  size="small"
+                                  sx={{ 
+                                    bgcolor: '#E8F5E9',
+                                    color: '#2E7D32',
+                                    fontWeight: 600,
+                                    fontSize: '0.65rem',
+                                    height: 18
+                                  }}
+                                />
+                              </Box>
+                              
+                              {selectedPlace?.id === place.id && (
+                                <Box sx={{ 
+                                  mt: 1.5, 
+                                  p: 1, 
+                                  bgcolor: '#E8F5E9', 
+                                  borderRadius: 1,
+                                  border: '1px solid #C8E6C9'
+                                }}>
+                                  <Typography variant="caption" sx={{ color: '#2E7D32' }}>
+                                    📍 Haz clic en el pin del mapa para más información
+                                  </Typography>
+                                </Box>
+                              )}
+                            </Box>
+                          </Paper>
+                        ))}
+                      </Box>
+                      
+                      <Box sx={{ mt: 2, textAlign: 'center' }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => {
+                            setRecommendedPlaces([]);
+                            mapPins.forEach(pin => pin.setMap(null));
+                            setMapPins([]);
+                            setSelectedPlace(null);
+                          }}
+                          sx={{
+                            color: '#2E7D32',
+                            borderColor: '#4CAF50',
+                            '&:hover': {
+                              borderColor: '#388E3C',
+                              bgcolor: '#E8F5E9'
+                            },
+                            textTransform: 'none',
+                            borderRadius: 2,
+                          }}
+                        >
+                          Limpiar Recomendaciones
+                        </Button>
+                      </Box>
+                    </Paper>
+                  </Box>
+                )}
 
                 {/* Lista de Tips Mejorada */}
                 {tips.length > 0 && (
@@ -3468,8 +4793,8 @@ const isUserAdmin = trip &&
                         <Box sx={{ 
                           display: 'flex',
                           gap: 2,
-                          overflowX: 'auto',
                           pb: 2,
+                          overflowX: 'auto',
                           scrollbarWidth: 'thin',
                           '&::-webkit-scrollbar': {
                             height: 8
@@ -3861,11 +5186,10 @@ const isUserAdmin = trip &&
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}>
-                        <Typography sx={{ fontSize: 18 }}>🤖</Typography>
                       </Box>
                       <Box>
                         <Typography variant="body1" sx={{ fontWeight: 600, color: '#7B1FA2' }}>
-                          Gemini Assistant
+                          Assistant
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#9C27B0' }}>
                           Tu asistente de viajes
@@ -4080,237 +5404,6 @@ const isUserAdmin = trip &&
                 </Paper>
             </Box>
           )}
-
-
-          {/* Lista de Lugares Recomendados */}
-          {recommendedPlaces.length > 0 && (
-            <Box sx={{ width: '100%', mb: 3 }}>
-              <Paper sx={{ 
-                bgcolor: '#E8F5E9',
-                border: '1px solid #C8E6C9',
-                borderRadius: 2,
-                boxShadow: 'none',
-                p: 2
-              }}>
-                  <Box display="flex" alignItems="center" gap={1.5} mb={2}>
-                    <Box sx={{ 
-                      bgcolor: 'rgba(46, 125, 50, 0.1)', 
-                      borderRadius: '50%', 
-                      p: 0.75,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Place sx={{ fontSize: 20, color: '#2E7D32' }} />
-                    </Box>
-                    <Box>
-                      <Typography variant="h6" sx={{ fontWeight: 600, color: '#2E7D32' }}>
-                        Lugares Recomendados
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#4CAF50' }}>
-                        Basados en tu consulta a Gemini
-                      </Typography>
-                    </Box>
-                  </Box>
-                  
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-                    {recommendedPlaces.map((place, index) => (
-                      <Paper key={place.id} sx={{ 
-                        flex: '1 1 280px',
-                        minWidth: 280,
-                        bgcolor: 'white',
-                        border: selectedPlace?.id === place.id ? '2px solid #4CAF50' : '1px solid #E0E0E0',
-                        borderRadius: 2,
-                        boxShadow: 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                          transform: 'translateY(-2px)',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                        }
-                      }}
-                      onClick={() => setSelectedPlace(place)}
-                      >
-                        <Box sx={{ p: 1.5 }}>
-                          <Box display="flex" alignItems="center" gap={1.5} mb={1}>
-                            <Box sx={{ 
-                              bgcolor: '#E8F5E9', 
-                              borderRadius: 1, 
-                              p: 0.75,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              {place.type === 'restaurant' && <Typography sx={{ fontSize: 18 }}>🍽️</Typography>}
-                              {place.type === 'lodging' && <Typography sx={{ fontSize: 18 }}>🏨</Typography>}
-                              {place.type === 'tourist_attraction' && <Typography sx={{ fontSize: 18 }}>🎯</Typography>}
-                              {place.type === 'gas_station' && <Typography sx={{ fontSize: 18 }}>⛽</Typography>}
-                            </Box>
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                              <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242', mb: 0.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {place.name}
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                                {place.vicinity}
-                              </Typography>
-                            </Box>
-                          </Box>
-                          
-                          <Box display="flex" alignItems="center" gap={1.5} mt={1}>
-                            <Box display="flex" alignItems="center" gap={0.5}>
-                              <Typography sx={{ fontSize: 14 }}>⭐</Typography>
-                              <Typography variant="caption" sx={{ color: '#424242', fontWeight: 500 }}>
-                                {place.rating}/5
-                              </Typography>
-                            </Box>
-                            <Chip
-                              label={place.type === 'restaurant' ? 'Restaurante' :
-                                     place.type === 'lodging' ? 'Alojamiento' :
-                                     place.type === 'tourist_attraction' ? 'Atracción' : 'Gasolinera'}
-                              size="small"
-                              sx={{ 
-                                bgcolor: '#E8F5E9',
-                                color: '#2E7D32',
-                                fontWeight: 600,
-                                fontSize: '0.65rem',
-                                height: 18
-                              }}
-                            />
-                          </Box>
-                          
-                          {selectedPlace?.id === place.id && (
-                            <Box sx={{ 
-                              mt: 1.5, 
-                              p: 1, 
-                              bgcolor: '#E8F5E9', 
-                              borderRadius: 1,
-                              border: '1px solid #C8E6C9'
-                            }}>
-                              <Typography variant="caption" sx={{ color: '#2E7D32' }}>
-                                📍 Haz clic en el pin del mapa para más información
-                              </Typography>
-                            </Box>
-                          )}
-                        </Box>
-                      </Paper>
-                    ))}
-                  </Box>
-                  
-                  <Box sx={{ mt: 2, textAlign: 'center' }}>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={() => {
-                        setRecommendedPlaces([]);
-                        mapPins.forEach(pin => pin.setMap(null));
-                        setMapPins([]);
-                        setSelectedPlace(null);
-                      }}
-                      sx={{
-                        color: '#2E7D32',
-                        borderColor: '#4CAF50',
-                        '&:hover': {
-                          borderColor: '#388E3C',
-                          bgcolor: '#E8F5E9'
-                        },
-                        textTransform: 'none',
-                        borderRadius: 2,
-                      }}
-                    >
-                      Limpiar Recomendaciones
-                    </Button>
-                  </Box>
-                </Paper>
-            </Box>
-          )}
-
-          {/* Lista de Participantes */}
-          <Box sx={{ width: '100%' }}>
-            <Paper sx={{ boxShadow: 'none', border: '1px solid #E0E0E0', borderRadius: 2 }}>
-              <Box sx={{ p: 3 }}>
-                <Box display="flex" alignItems="center" gap={2} mb={2}>
-                  <People sx={{ color: '#1976D2', fontSize: 24 }} />
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
-                    Miembros del Viaje ({participants.length})
-                  </Typography>
-                </Box>
-
-                {participants.length === 0 ? (
-                  <Box sx={{ textAlign: 'center', py: 3 }}>
-                    <People sx={{ fontSize: 48, color: '#BDBDBD', mb: 1.5 }} />
-                    <Typography variant="h6" sx={{ mb: 1.5, color: '#666' }}>
-                      No hay miembros en este viaje
-                    </Typography>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<PersonAdd />}
-                      onClick={() => router.push(`/trip/${tripId}/add-users`)}
-                      sx={{
-                        bgcolor: '#4CAF50',
-                        '&:hover': { bgcolor: '#388E3C' },
-                        textTransform: 'none',
-                        borderRadius: 2,
-                      }}
-                    >
-                      Agregar Miembros
-                    </Button>
-                  </Box>
-                ) : (
-                  <List>
-                    {participants.map((p) => (
-                      <ListItem key={p.id} sx={{ py: 1 }}>
-                      <ListItemAvatar>
-                      <Avatar src={p.profilePicture || undefined} sx={{ width: 40, height: 40 }}>
-                        {p.name?.[0] || 'U'}
-                      </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={p.name}
-                        secondary={p.email}
-                        primaryTypographyProps={{ sx: { fontWeight: 500, color: '#424242' } }}
-                        secondaryTypographyProps={{ sx: { color: '#666', fontSize: '0.875rem' } }}
-                      />
-                      {isUserAdmin && (
-                      <>
-                      {/* Botón eliminar participante */}
-                      <IconButton
-                        size="small"
-                        onClick={() => handleRemoveParticipant(p.id)}
-                        sx={{ color: '#F44336' }}
-                      >
-                    <Delete sx={{ fontSize: 18 }} />
-                      </IconButton>
-                    {/* Botón agregar como admin */}
-                    {!trip?.adminIds?.includes(p.id) && (
-                    <IconButton
-                      size="small"
-                      onClick={() => handleAddAdmin(p.id)}
-                      sx={{ color: '#1976D2' }}
-                    >
-                        <PersonAdd sx={{ fontSize: 18 }} />
-                        </IconButton>
-                        )}
-                        {/* Botón quitar admin */}
-                        {trip?.adminIds?.includes(p.id) && (
-                          <IconButton
-                          size="small"
-                          onClick={() => handleRemoveAdmin(p.id)}
-                          sx={{ color: '#FF9800' }}
-                          >
-                            <Clear sx={{ fontSize: 18 }} />
-                          </IconButton>
-                        )}
-                      </>
-                      )}
-                    </ListItem>
-                  ))}
-                </List>
-
-                )}
-              </Box>
-            </Paper>
-          </Box>
         </Box>
       </Container>
 
@@ -4377,6 +5470,217 @@ const isUserAdmin = trip &&
         <DialogActions sx={{ p: 3 }}>
           <Button onClick={() => setOpenShareDialog(false)}>
             Cerrar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog para editar fechas */}
+      <Dialog open={openEditDates} onClose={() => setOpenEditDates(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Editar Fechas del Viaje</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+            <TextField
+              label="Fecha de Inicio"
+              type="date"
+              value={editDateI}
+              onChange={(e) => setEditDateI(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+              inputProps={{
+                min: new Date().toISOString().split('T')[0] // No permitir fechas anteriores a hoy
+              }}
+            />
+            <TextField
+              label="Fecha de Fin"
+              type="date"
+              value={editDateF}
+              onChange={(e) => setEditDateF(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+              inputProps={{
+                min: editDateI || new Date().toISOString().split('T')[0] // No permitir fechas anteriores a la fecha de inicio
+              }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenEditDates(false)}>Cancelar</Button>
+          <Button onClick={handleUpdateTripDates} variant="contained">Guardar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog para editar ubicaciones */}
+      <Dialog 
+        open={openEditLocations} 
+        onClose={() => setOpenEditLocations(false)} 
+        maxWidth="md" 
+        fullWidth
+        TransitionProps={{
+          onEntered: () => {
+            // Inicializar autocompletados cuando el Dialog esté completamente montado
+            if (isGoogleMapsLoaded && window.google && window.google.maps) {
+              setTimeout(() => {
+                // Inicializar autocompletado para origen
+                if (originAutocompleteRef.current) {
+                  const inputElement = originAutocompleteRef.current.querySelector('input');
+                  if (inputElement) {
+                    const hasAutocomplete = (inputElement as any).__autocomplete;
+                    if (!hasAutocomplete) {
+                      const autocomplete = new window.google.maps.places.Autocomplete(inputElement, {
+                        types: ['geocode']
+                      });
+                      
+                      (inputElement as any).__autocomplete = autocomplete;
+                      
+                      autocomplete.addListener('place_changed', () => {
+                        const place = autocomplete.getPlace();
+                        if (place.geometry && place.geometry.location) {
+                          const location = {
+                            lat: place.geometry.location.lat(),
+                            lng: place.geometry.location.lng()
+                          };
+                          setEditOrigin(place.formatted_address || place.name || '');
+                          setEditOriginCoords(location);
+                        }
+                      });
+                      
+                      setOriginAutocomplete(autocomplete);
+                    }
+                  }
+                }
+
+                // Inicializar autocompletado para destino
+                if (destinationAutocompleteRef.current) {
+                  const inputElement = destinationAutocompleteRef.current.querySelector('input');
+                  if (inputElement) {
+                    const hasAutocomplete = (inputElement as any).__autocomplete;
+                    if (!hasAutocomplete) {
+                      const autocomplete = new window.google.maps.places.Autocomplete(inputElement, {
+                        types: ['geocode']
+                      });
+                      
+                      (inputElement as any).__autocomplete = autocomplete;
+                      
+                      autocomplete.addListener('place_changed', () => {
+                        const place = autocomplete.getPlace();
+                        if (place.geometry && place.geometry.location) {
+                          const location = {
+                            lat: place.geometry.location.lat(),
+                            lng: place.geometry.location.lng()
+                          };
+                          setEditDestination(place.formatted_address || place.name || '');
+                          setEditDestinationCoords(location);
+                        }
+                      });
+                      
+                      setDestinationAutocomplete(autocomplete);
+                    }
+                  }
+                }
+              }, 100);
+              
+              // Inicializar mapas si hay coordenadas
+              setTimeout(() => {
+                initializeMapsInModal();
+              }, 300);
+            }
+          }
+        }}
+      >
+        <DialogTitle>Editar Origen y Destino</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
+            {/* Origen */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <TextField
+                ref={originAutocompleteRef}
+                label="Origen"
+                value={editOrigin}
+                onChange={(e) => setEditOrigin(e.target.value)}
+                fullWidth
+                placeholder="Ej: Buenos Aires, Argentina"
+                helperText="Escribe para buscar ubicaciones o haz click en el mapa para seleccionar"
+              />
+              {editOrigin && !isGoogleMapsLoaded && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={16} />
+                  <Typography variant="body2" color="text.secondary">
+                    Cargando Google Maps...
+                  </Typography>
+                </Box>
+              )}
+              {editOriginCoords && (
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', fontStyle: 'italic' }}>
+                    💡 Haz click en el mapa para seleccionar una ubicación más específica
+                  </Typography>
+                  <Box
+                    ref={originMapModalRef}
+                    sx={{
+                      width: '100%',
+                      height: 200,
+                      borderRadius: 2,
+                      border: '1px solid #e0e0e0',
+                      overflow: 'hidden',
+                      cursor: 'crosshair'
+                    }}
+                  />
+                </Box>
+              )}
+            </Box>
+
+            {/* Destino */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <TextField
+                ref={destinationAutocompleteRef}
+                label="Destino"
+                value={editDestination}
+                onChange={(e) => setEditDestination(e.target.value)}
+                fullWidth
+                placeholder="Ej: Córdoba, Argentina"
+                helperText="Escribe para buscar ubicaciones o haz click en el mapa para seleccionar"
+              />
+              {editDestination && !isGoogleMapsLoaded && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={16} />
+                  <Typography variant="body2" color="text.secondary">
+                    Cargando Google Maps...
+                  </Typography>
+                </Box>
+              )}
+              {editDestinationCoords && (
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', fontStyle: 'italic' }}>
+                    💡 Haz click en el mapa para seleccionar una ubicación más específica
+                  </Typography>
+                  <Box
+                    ref={destinationMapModalRef}
+                    sx={{
+                      width: '100%',
+                      height: 200,
+                      borderRadius: 2,
+                      border: '1px solid #e0e0e0',
+                      overflow: 'hidden',
+                      cursor: 'crosshair'
+                    }}
+                  />
+                </Box>
+              )}
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setOpenEditLocations(false);
+            setEditOriginCoords(null);
+            setEditDestinationCoords(null);
+          }}>Cancelar</Button>
+          <Button 
+            onClick={handleUpdateTripLocations} 
+            variant="contained"
+            disabled={!editOrigin || !editDestination || !editOriginCoords || !editDestinationCoords}
+          >
+            Guardar
           </Button>
         </DialogActions>
       </Dialog>
