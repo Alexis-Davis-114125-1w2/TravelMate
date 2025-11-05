@@ -323,24 +323,40 @@ export default function DashboardPage() {
         if (response.ok) {
           const tripsData = await response.json();
           
-          // Obtener el número de participantes para cada viaje
+          // Obtener el número de participantes y el origen para cada viaje
           const tripsWithParticipants = await Promise.all(
             tripsData.map(async (trip: Trip) => {
               try {
+                // Obtener participantes
                 const participantsResponse = await fetch(
                   `${API_BASE_URL}/api/trips/${trip.id}/participants?userId=${userId}`,
                 { headers: getAuthHeaders() }
                 );
       
+                let participantCount = trip.participants || 0;
                 if (participantsResponse.ok) {
                   const participantsData = await participantsResponse.json();
                   // La respuesta tiene estructura: { success: true, data: [...], total: 2 }
-                  const participantCount = participantsData.total || participantsData.data?.length || 0;
-                  return { ...trip, participantCount };
+                  participantCount = participantsData.total || participantsData.data?.length || 0;
                 }
-                return { ...trip, participantCount: trip.participants || 0 };
+
+                // Obtener detalles del viaje para obtener el origen si no está presente
+                let origin = trip.origin;
+                if (!origin) {
+                  try {
+                    const detailsResponse = await api.getTripDetails(trip.id.toString(), userId);
+                    if (detailsResponse.ok) {
+                      const detailsData = await detailsResponse.json();
+                      origin = detailsData.origin || null;
+                    }
+                  } catch (detailsErr) {
+                    console.error(`Error al obtener detalles del viaje ${trip.id}:`, detailsErr);
+                  }
+                }
+
+                return { ...trip, participantCount, origin: origin || trip.origin };
               } catch (err) {
-                console.error(`Error al obtener participantes del viaje ${trip.id}:`, err);
+                console.error(`Error al obtener datos del viaje ${trip.id}:`, err);
                 return { ...trip, participantCount: trip.participants || 0 };
               }
             })
@@ -803,11 +819,11 @@ export default function DashboardPage() {
       </Drawer>
 
       {/* Main Content - Two Column Layout */}
-      <Box sx={{ display: 'flex', maxWidth: '1400px', mx: 'auto', gap: 4, p: 4 }}>
+      <Box sx={{ display: 'flex', maxWidth: '1400px', mx: 'auto', gap: 4, p: 4, alignItems: 'flex-start' }}>
         {/* Left Column - Main Content (Wider) */}
-        <Box sx={{ flex: '1 1 70%', minWidth: 0 }}>
+        <Box sx={{ flex: '1 1 70%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {/* Digital Clock & Calendar Section */}
-          <Box sx={{ display: 'flex', gap: 3, mb: 4, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <Box sx={{ display: 'flex', gap: 3, mb: 4, flexWrap: 'wrap', alignItems: 'flex-start', position: 'relative' }}>
             {/* Digital Clock */}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ display: 'flex', gap: 2 }}>
@@ -845,12 +861,12 @@ export default function DashboardPage() {
                 </Paper>
               </Box>
               
-              {/* Clima */}
+              {/* Clima - Alineado con el calendario */}
               {weather && (
                 <Paper sx={{
                   bgcolor: '#E3F2FD',
                   borderRadius: 2,
-                  p: 1.5,
+                  p: 2,
                   textAlign: 'center',
                   boxShadow: 'none',
                   border: '1px solid #BBDEFB',
@@ -858,7 +874,9 @@ export default function DashboardPage() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 1,
-                  maxWidth: 244, // No exceder el ancho del reloj (120 + 120 + gap)
+                  width: 280,
+                  flex: 1,
+                  minHeight: 0,
                 }}>
                   {loadingWeather ? (
                     <CircularProgress size={16} sx={{ color: '#1976D2' }} />
@@ -885,6 +903,8 @@ export default function DashboardPage() {
                 p: 2,
                 boxShadow: 'none',
                 border: '1px solid #C8E6C9',
+                display: 'flex',
+                flexDirection: 'column',
               }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: '#2E7D32' }}>
@@ -1002,14 +1022,15 @@ export default function DashboardPage() {
                     })()}
                   </Box>
                 )}
-                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-around', mb: 1, flexWrap: 'wrap' }}>
-                  {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((day, idx) => (
-                    <Typography key={idx} variant="caption" sx={{ color: '#388E3C', fontWeight: 600, minWidth: 50, textAlign: 'center', fontSize: '0.7rem' }}>
-                      {day}
-                    </Typography>
-                  ))}
-        </Box>
-                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-around' }}>
+                <Box sx={{ mt: 'auto' }}>
+                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-around', mb: 1, flexWrap: 'wrap' }}>
+                    {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((day, idx) => (
+                      <Typography key={idx} variant="caption" sx={{ color: '#388E3C', fontWeight: 600, minWidth: 50, textAlign: 'center', fontSize: '0.7rem' }}>
+                        {day}
+                      </Typography>
+                    ))}
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-around' }}>
                   {(() => {
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
@@ -1093,10 +1114,9 @@ export default function DashboardPage() {
                       );
                     });
                   })()}
+                  </Box>
                 </Box>
               </Paper>
-              
-
             </Box>
           </Box>
 
@@ -1282,7 +1302,7 @@ export default function DashboardPage() {
                           right: 0,
                           bottom: 0,
                           background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.5) 100%)',
-                          backdropFilter: 'blur(2px)',
+                          backdropFilter: 'blur(6px)',
                           zIndex: 0,
                         } : {},
                         '&:hover': {
@@ -1329,9 +1349,6 @@ export default function DashboardPage() {
                             sx={{ fontWeight: 600, color: pastelColor.text, overflow: 'hidden', textOverflow: 'ellipsis' }}
                           >
                               {trip.name}
-                            </Typography>
-                          <Typography variant="caption" sx={{ color: pastelColor.text, opacity: 0.7 }}>
-                              {trip.destination}
                             </Typography>
                           {viewMode === 'gallery' && (
                             <Typography variant="caption" sx={{ color: pastelColor.text, opacity: 0.6, mt: 0.5 }}>
@@ -1475,6 +1492,7 @@ export default function DashboardPage() {
                               right: 0,
                               bottom: 0,
                               background: 'linear-gradient(to right, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.5) 100%)',
+                              backdropFilter: 'blur(6px)',
                               zIndex: 0,
                             } : {},
                             '&:hover': {
@@ -1520,9 +1538,6 @@ export default function DashboardPage() {
                                 sx={{ fontWeight: 600, color: pastelColor.text, mb: 0.5 }}
                               >
                                 {trip.name}
-                              </Typography>
-                              <Typography variant="body2" sx={{ color: pastelColor.text, opacity: 0.7, mb: 1 }}>
-                                {trip.destination}
                               </Typography>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
                                 <Chip
@@ -1587,13 +1602,10 @@ export default function DashboardPage() {
         </Box>
 
         {/* Right Column - Sidebar (Narrower) */}
-        <Box sx={{ flex: '0 0 280px', display: { xs: 'none', lg: 'block' } }}>
-        {/* Quick Stats */}
-        {trips.length > 0 && (
-          <Box sx={{ mb: 4 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242', mb: 2 }}>
-                Resumen
-            </Typography>
+        <Box sx={{ flex: '0 0 280px', display: { xs: 'none', lg: 'block' }, alignSelf: 'flex-start' }}>
+          {/* Quick Stats - Alineado con calendario */}
+          {trips.length > 0 && (
+            <Box sx={{ mb: 4 }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
                 <Paper sx={{
                   bgcolor: '#E3F2FD',
@@ -1602,6 +1614,9 @@ export default function DashboardPage() {
                   textAlign: 'center', 
                   boxShadow: 'none',
                   border: '1px solid #BBDEFB',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-start',
                 }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: '#1976D2', mb: 0.5 }}>
                     {trips.length}
@@ -1617,6 +1632,9 @@ export default function DashboardPage() {
                   textAlign: 'center', 
                   boxShadow: 'none',
                   border: '1px solid #C8E6C9',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-start',
                 }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: '#2E7D32', mb: 0.5 }}>
                     {completedTrips}
@@ -1632,6 +1650,9 @@ export default function DashboardPage() {
                   textAlign: 'center', 
                   boxShadow: 'none',
                   border: '1px solid #FFE0B2',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-start',
                 }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: '#E65100', mb: 0.5 }}>
                     {planningTrips}
@@ -1647,6 +1668,9 @@ export default function DashboardPage() {
                   textAlign: 'center', 
                   boxShadow: 'none',
                   border: '1px solid #B3E5FC',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-start',
                 }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: '#0277BD', mb: 0.5 }}>
                     {trips.reduce((acc, trip) => acc + (trip.participantCount || trip.participants || 0), 0)}
@@ -1655,9 +1679,9 @@ export default function DashboardPage() {
                     Participantes
                   </Typography>
                 </Paper>
+              </Box>
             </Box>
-          </Box>
-        )}
+          )}
 
           {/* Quick Links */}
           <Box sx={{ mb: 4 }}>
@@ -1718,7 +1742,12 @@ export default function DashboardPage() {
       </Box>
 
       {/* Join Trip Dialog */}
-      <Dialog open={openJoinDialog} onClose={() => setOpenJoinDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={openJoinDialog} 
+        onClose={() => setOpenJoinDialog(false)} 
+        maxWidth="sm" 
+        fullWidth
+      >
         <DialogTitle>Unirme a un Viaje</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
