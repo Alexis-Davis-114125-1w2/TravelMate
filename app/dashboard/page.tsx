@@ -16,7 +16,16 @@ import {
   AppBar,
   Toolbar,
   IconButton,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Divider,
   Chip,
+  MenuItem,
+  Menu,
   Avatar,
   CircularProgress,
   Backdrop,
@@ -61,7 +70,7 @@ import {
   GroupAdd,
   ContentCopy,
   Delete,
-  Menu,
+  Menu as MenuIcon,
   Star,
   MoreVert,
   CheckCircle,
@@ -76,6 +85,9 @@ import {
   Thunderstorm,
   WaterDrop,
   Foggy,
+  Person,
+  HelpOutline,
+  Gavel
 } from '@mui/icons-material';
 
 interface TripWithParticipants extends Trip {
@@ -123,6 +135,25 @@ export default function DashboardPage() {
   // Estados para el clima
   const [weather, setWeather] = useState<{ temp: number; description: string; icon: string; code: number } | null>(null);
   const [loadingWeather, setLoadingWeather] = useState(false);
+
+  const [openDrawer, setOpenDrawer] = useState(false);
+
+  const toggleDrawer = (open: boolean) => (event: React.KeyboardEvent | React.MouseEvent) => {
+    // evita que se cierre con tab o shift
+    if (
+      event.type === 'keydown' &&
+      ((event as React.KeyboardEvent).key === 'Tab' ||
+        (event as React.KeyboardEvent).key === 'Shift')
+    ) {
+      return;
+    }
+    setOpenDrawer(open);
+  };
+
+  const handleNavigate = (path: string) => {
+    router.push(path);
+    setOpenDrawer(false);
+  };
 
   const handleCopyJoinCode = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -693,8 +724,9 @@ export default function DashboardPage() {
         justifyContent: 'space-between',
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <IconButton size="small" sx={{ color: '#666' }}>
-            <Menu />
+          {/* Botón del Drawer */}
+          <IconButton size="small" sx={{ color: '#666' }} onClick={toggleDrawer(true)}>
+            <MenuIcon />
           </IconButton>
           <TravelExplore sx={{ color: '#03a9f4', fontSize: 24 }} />
           <Typography variant="h6" sx={{ fontWeight: 500, color: '#424242' }}>
@@ -710,6 +742,65 @@ export default function DashboardPage() {
           </IconButton>
         </Box>
       </Box>
+
+      {/* Drawer lateral */}
+      <Drawer anchor="left" open={openDrawer} onClose={toggleDrawer(false)}>
+        <Box
+          sx={{
+            width: 250,
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            bgcolor: '#fafafa',
+          }}
+          role="presentation"
+          onClick={toggleDrawer(false)}
+          onKeyDown={toggleDrawer(false)}
+        >
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Menú
+            </Typography>
+          </Box>
+          <Divider />
+
+          <List>
+            <ListItem disablePadding>
+              <ListItemButton onClick={() => handleNavigate('/perfil')}>
+                <ListItemIcon>
+                  <Person sx={{ color: '#03a9f4' }} />
+                </ListItemIcon>
+                <ListItemText primary="Perfil" />
+              </ListItemButton>
+            </ListItem>
+
+            <ListItem disablePadding>
+              <ListItemButton onClick={() => handleNavigate('/terms')}>
+                <ListItemIcon>
+                  <Gavel sx={{ color: '#03a9f4' }} />
+                </ListItemIcon>
+                <ListItemText primary="Términos y condiciones" />
+              </ListItemButton>
+            </ListItem>
+
+            <ListItem disablePadding>
+              <ListItemButton onClick={() => handleNavigate('/faq')}>
+                <ListItemIcon>
+                  <HelpOutline sx={{ color: '#03a9f4' }} />
+                </ListItemIcon>
+                <ListItemText primary="Preguntas frecuentes" />
+              </ListItemButton>
+            </ListItem>
+          </List>
+
+          <Divider sx={{ mt: 'auto' }} />
+          <Box sx={{ p: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              © {new Date().getFullYear()} TravelMate
+            </Typography>
+          </Box>
+        </Box>
+      </Drawer>
 
       {/* Main Content - Two Column Layout */}
       <Box sx={{ display: 'flex', maxWidth: '1400px', mx: 'auto', gap: 4, p: 4 }}>
