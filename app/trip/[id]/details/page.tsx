@@ -149,14 +149,14 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const [tripId, setTripId] = useState<string>('');
-  
+
   // Resolver params
   useEffect(() => {
     params.then(resolvedParams => {
       setTripId(resolvedParams.id);
     });
   }, [params]);
-  
+
   // Estados principales
   const [trip, setTrip] = useState<TripDetails | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -164,16 +164,16 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [error, setError] = useState<string | null>(null);
   const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
   const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(false);
-  
+
   // Estados para mapas
   const [map, setMap] = useState<any>(null);
   const [directionsService, setDirectionsService] = useState<any>(null);
   const [directionsRenderer, setDirectionsRenderer] = useState<any>(null);
-  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [routeDistance, setRouteDistance] = useState<string>('');
   const [routeDuration, setRouteDuration] = useState<string>('');
   const [distanceFromCurrent, setDistanceFromCurrent] = useState<string>('');
-  
+
   // Estados para navegación en tiempo real
   const [isNavigating, setIsNavigating] = useState(false);
   const [navigationSteps, setNavigationSteps] = useState<any[]>([]);
@@ -182,33 +182,33 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [remainingTime, setRemainingTime] = useState<string>('');
   const [nextInstruction, setNextInstruction] = useState<string>('');
   const [watchId, setWatchId] = useState<number | null>(null);
-  
+
   // Estados para IA y recomendaciones
   const [aiRecommendations, setAiRecommendations] = useState<any[]>([]);
   const [lastRecommendationKm, setLastRecommendationKm] = useState<number>(0);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
-  
+
   // Estados para chatbox con Gemini
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  
+
   // Estados para zoom y seguimiento del mapa
   const [mapZoom, setMapZoom] = useState(8);
   const [isFollowingVehicle, setIsFollowingVehicle] = useState(false);
-  
+
   // Estados para lugares recomendados
   const [recommendedPlaces, setRecommendedPlaces] = useState<any[]>([]);
   const [mapPins, setMapPins] = useState<any[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<any>(null);
-  
+
   // Estados para tips
   const [tips, setTips] = useState<any[]>([]);
   const [showTipsList, setShowTipsList] = useState(false);
   const [tipPins, setTipPins] = useState<any[]>([]);
-  
+
   // Estados para navegación temporal a tips
   const [isNavigatingToTip, setIsNavigatingToTip] = useState(false);
   const [currentTipDestination, setCurrentTipDestination] = useState<any>(null);
@@ -233,12 +233,12 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [purchaseCurrency, setPurchaseCurrency] = useState<'PESOS' | 'DOLARES' | 'EUROS'>('PESOS');
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
   const [purchaseIsGeneral, setPurchaseIsGeneral] = useState(true);
-  
+
   // Estados para cotizaciones
   const [dollarRate, setDollarRate] = useState<number | null>(null);
   const [euroRate, setEuroRate] = useState<number | null>(null);
   const [loadingRates, setLoadingRates] = useState(false);
-  
+
   // Estados para lista de compras
   const [purchasesExpanded, setPurchasesExpanded] = useState(false);
   const [purchaseFilter, setPurchaseFilter] = useState<'all' | 'general' | 'individual'>('all');
@@ -252,7 +252,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [editDestination, setEditDestination] = useState('');
   const [editOriginCoords, setEditOriginCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [editDestinationCoords, setEditDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
-  
+
   // Referencias para los autocompletados
   const originAutocompleteRef = useRef<HTMLInputElement>(null);
   const destinationAutocompleteRef = useRef<HTMLInputElement>(null);
@@ -264,6 +264,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [destinationModalMarker, setDestinationModalMarker] = useState<any>(null);
   const [originAutocomplete, setOriginAutocomplete] = useState<any>(null);
   const [destinationAutocomplete, setDestinationAutocomplete] = useState<any>(null);
+  const [navigationMode, setNavigationMode] = useState<'to-origin' | 'to-destination' | null>(null);
 
   // Eliminar viaje
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -273,7 +274,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     console.log('🔍 Tips cambiaron:', tips.length, tips);
   }, [tips]);
-  
+
   // Referencias
   const mapRef = useRef<HTMLDivElement>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -281,9 +282,9 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
 
   // Función para inicializar un mapa pequeño en el modal
   const initializeModalMap = (
-    mapRef: React.RefObject<HTMLDivElement | null>, 
-    coords: {lat: number, lng: number} | null, 
-    title: string, 
+    mapRef: React.RefObject<HTMLDivElement | null>,
+    coords: { lat: number, lng: number } | null,
+    title: string,
     isOrigin: boolean = false
   ) => {
     if (!mapRef.current || !coords || !window.google) return;
@@ -400,19 +401,19 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   //Eliminar viaje
   const handleDeleteTrip = async () => {
     if (!trip?.id || !user?.id) return;
-  
+
     try {
       setDeletingTrip(true);
       const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
-    
+
       const response = await fetch(
         `${API_BASE_URL}/api/trips/${trip.id}/${userId}?userId=${userId}`,
-       {
+        {
           method: 'DELETE',
-         headers: getAuthHeaders(),
+          headers: getAuthHeaders(),
         }
       );
-    
+
       if (response.ok) {
         toast.success('Viaje eliminado exitosamente');
         router.push('/dashboard'); // Redirigir al dashboard
@@ -494,12 +495,12 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
         console.log('3. API key inválida');
         toast.error('Error al cargar Google Maps. Verifica que no tengas un bloqueador de anuncios activo y tu conexión a internet.');
       };
-      
+
       window.initGoogleMaps = () => {
         console.log('Google Maps cargado exitosamente');
         setIsGoogleMapsLoaded(true);
       };
-      
+
       // Timeout para Google Maps
       const timeout = setTimeout(() => {
         if (!isGoogleMapsLoaded) {
@@ -507,13 +508,13 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
           toast.error('Timeout cargando Google Maps. Verifica tu conexión.');
         }
       }, 10000); // 10 segundos timeout
-      
+
       window.initGoogleMaps = () => {
         clearTimeout(timeout);
         console.log('Google Maps cargado exitosamente');
         setIsGoogleMapsLoaded(true);
       };
-      
+
       document.head.appendChild(script);
     };
 
@@ -529,26 +530,26 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
         setLoading(true);
         setError(null);
         setHasAttemptedLoad(true);
-        
+
         const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
-        
+
         console.log('Fetching trip details for tripId:', tripId, 'userId:', userId);
         console.log('API URL:', `${API_BASE_URL}/api/trips/${tripId}?userId=${userId}`);
         console.log('Auth headers:', getAuthHeaders());
         console.log('API_BASE_URL:', API_BASE_URL);
-        
+
         console.log('Iniciando carga de datos del viaje...');
-        
+
         // Obtener detalles del viaje
         const tripResponse = await fetch(`${API_BASE_URL}/api/trips/${tripId}?userId=${userId}`, {
           headers: getAuthHeaders()
         });
-        
+
         if (!tripResponse.ok) {
           if (tripResponse.status === 302) {
             throw new Error('Error de autenticación. Por favor, inicia sesión nuevamente.');
           }
-          
+
           // Intentar obtener más información del error
           let errorMessage = `Error del servidor: ${tripResponse.status} ${tripResponse.statusText}`;
           try {
@@ -562,20 +563,20 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
             console.log('Response status:', tripResponse.status);
             console.log('Response statusText:', tripResponse.statusText);
           }
-          
+
           console.error('Full error details:', {
             status: tripResponse.status,
             statusText: tripResponse.statusText,
             url: `${API_BASE_URL}/api/trips/${tripId}?userId=${userId}`,
             headers: getAuthHeaders()
           });
-          
+
           throw new Error(errorMessage);
         }
-        
+
         const tripData = await tripResponse.json();
         setTrip(tripData);
-        
+
         // Los participantes ya vienen en la respuesta del viaje
         if (tripData.participants) {
           setParticipants(tripData.participants);
@@ -585,18 +586,18 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
             `${API_BASE_URL}/api/trips/${tripId}/participants?userId=${userId}`,
             { headers: getAuthHeaders() }
           );
-          
+
           if (participantsResponse.ok) {
             const participantsData = await participantsResponse.json();
             setParticipants(participantsData.data || []);
           }
         }
-        
+
         // Cargar billeteras, compras y cotizaciones
         loadWallets(tripId, userId);
         loadPurchases(tripId, userId);
         loadExchangeRates();
-        
+
       } catch (err) {
         console.error('Error al cargar datos del viaje:', err);
         setError(err instanceof Error ? err.message : 'Error al cargar los datos del viaje');
@@ -625,7 +626,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
               lng: tip.longitude
             } : null)
           }));
-          
+
           // Reemplazar todos los tips con los de la base de datos (evitar duplicados)
           setTips(prev => {
             // Si ya hay tips locales, solo agregar los que no existen
@@ -639,7 +640,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
             }
             return prev;
           });
-          
+
           // Agregar pins al mapa cuando el mapa esté disponible
           const addPinsWhenMapReady = () => {
             if (map) {
@@ -667,10 +668,10 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     if (isGoogleMapsLoaded && trip && mapRef.current) {
       initializeMap();
       calculateDistanceMetrics();
-      
+
       // Calcular ruta automáticamente si tenemos origen y destino
-      if (trip.originLatitude && trip.originLongitude && 
-          trip.destinationLatitude && trip.destinationLongitude) {
+      if (trip.originLatitude && trip.originLongitude &&
+        trip.destinationLatitude && trip.destinationLongitude) {
         setTimeout(() => {
           calculateRoute();
         }, 1000); // Pequeño delay para asegurar que el mapa esté listo
@@ -695,8 +696,8 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   }, [watchId]);
 
   // 🧠 Determinar si el usuario actual es admin o creador
-const isUserAdmin = trip &&
-  (trip.adminIds && trip.adminIds.includes(Number(user?.id)));
+  const isUserAdmin = trip &&
+    (trip.adminIds && trip.adminIds.includes(Number(user?.id)));
 
   // ✅ Agregar Admin
   const handleAddAdmin = async (adminId: number) => {
@@ -772,14 +773,14 @@ const isUserAdmin = trip &&
   const loadWallets = async (tripId: string, userId: number) => {
     try {
       setLoadingWallets(true);
-      
+
       // Cargar billetera general
       const generalResponse = await api.getGeneralWallet(tripId);
       if (generalResponse.ok) {
         const generalData = await generalResponse.json();
         setGeneralWallet(generalData.data);
       }
-      
+
       // Cargar billetera individual del usuario
       const individualResponse = await api.getIndividualWallet(tripId, userId);
       if (individualResponse.ok) {
@@ -874,14 +875,14 @@ const isUserAdmin = trip &&
   const loadPurchases = async (tripId: string, userId: number) => {
     try {
       setLoadingPurchases(true);
-      
+
       // Cargar compras generales
       const generalResponse = await api.getGeneralPurchases(tripId);
       if (generalResponse.ok) {
         const generalData = await generalResponse.json();
         setGeneralPurchases(generalData.data || []);
       }
-      
+
       // Cargar compras individuales del usuario
       const individualResponse = await api.getIndividualPurchases(tripId, userId);
       if (individualResponse.ok) {
@@ -943,7 +944,7 @@ const isUserAdmin = trip &&
 
     try {
       const response = await api.deletePurchase(trip.id.toString(), purchaseId);
-      
+
       if (response.ok) {
         toast.success('Compra eliminada exitosamente');
         // Recargar compras
@@ -1046,7 +1047,7 @@ const isUserAdmin = trip &&
         if (tripResponse.ok) {
           const updatedTrip = await tripResponse.json();
           setTrip(updatedTrip);
-          
+
           // Actualizar el mapa si hay coordenadas del destino
           // El useEffect que escucha cambios en las coordenadas del trip se encargará de recalcular la ruta
           if (editDestinationCoords && map) {
@@ -1054,15 +1055,15 @@ const isUserAdmin = trip &&
             map.setCenter(editDestinationCoords);
             map.setZoom(10);
           }
-          
+
           // Recalcular la ruta después de actualizar el trip
-          if (updatedTrip.originLatitude && updatedTrip.originLongitude && 
-              updatedTrip.destinationLatitude && updatedTrip.destinationLongitude) {
+          if (updatedTrip.originLatitude && updatedTrip.originLongitude &&
+            updatedTrip.destinationLatitude && updatedTrip.destinationLongitude) {
             setTimeout(() => {
               calculateRoute();
             }, 500);
           }
-          
+
           // Limpiar estados del modal
           setEditOriginCoords(null);
           setEditDestinationCoords(null);
@@ -1106,14 +1107,14 @@ const isUserAdmin = trip &&
   const loadExchangeRates = async () => {
     try {
       setLoadingRates(true);
-      
+
       // Obtener cotización del dólar
       const dollarResponse = await fetch('https://dolarapi.com/v1/dolares/oficial');
       if (dollarResponse.ok) {
         const dollarData = await dollarResponse.json();
         setDollarRate(dollarData.compra);
       }
-      
+
       // Obtener cotización del euro
       const euroResponse = await fetch('https://dolarapi.com/v1/cotizaciones/eur');
       if (euroResponse.ok) {
@@ -1205,20 +1206,20 @@ const isUserAdmin = trip &&
         }
       );
       if (response.ok) {
-      const result = await response.json();
-      toast.info(result.message || 'Participante eliminado');
-      // refrescar trip
-      const tripResp = await fetch(`${API_BASE_URL}/api/trips/${trip?.id}?userId=${user?.id}`, { headers: getAuthHeaders() });
-      if (tripResp.ok) {
-        const updatedTrip = await tripResp.json();
-        setTrip(updatedTrip);
-        setParticipants(updatedTrip.participants || []);
+        const result = await response.json();
+        toast.info(result.message || 'Participante eliminado');
+        // refrescar trip
+        const tripResp = await fetch(`${API_BASE_URL}/api/trips/${trip?.id}?userId=${user?.id}`, { headers: getAuthHeaders() });
+        if (tripResp.ok) {
+          const updatedTrip = await tripResp.json();
+          setTrip(updatedTrip);
+          setParticipants(updatedTrip.participants || []);
+        }
+      } else {
+        const text = await response.text();
+        console.error('Server error:', response.status, text);
+        toast.error('Error al eliminar participante');
       }
-    } else {
-      const text = await response.text();
-      console.error('Server error:', response.status, text);
-      toast.error('Error al eliminar participante');
-    }
     } catch (error) {
       console.error(error);
       toast.error('Error de conexión');
@@ -1277,15 +1278,15 @@ const isUserAdmin = trip &&
     getCurrentLocation();
   };
 
-  const calculateRoute = () => {
+  const calculateRoute = async () => {
     if (!directionsService || !directionsRenderer || !trip) {
       console.log('Directions API no disponible');
       return;
     }
 
     // Verificar que tenemos coordenadas válidas
-    if (!trip.originLatitude || !trip.originLongitude || 
-        !trip.destinationLatitude || !trip.destinationLongitude) {
+    if (!trip.originLatitude || !trip.originLongitude ||
+      !trip.destinationLatitude || !trip.destinationLongitude) {
       console.log('No hay coordenadas suficientes para calcular la ruta');
       return;
     }
@@ -1295,6 +1296,10 @@ const isUserAdmin = trip &&
 
     console.log('Calculando ruta completa desde:', origin, 'hasta:', destination);
 
+    if (trip.vehicle === 'avion') {
+      await calculateFlightRoute(origin, destination);
+      return;
+    }
     // Determinar modo de transporte
     let travelMode = window.google.maps.TravelMode.DRIVING;
     switch (trip.vehicle) {
@@ -1330,7 +1335,7 @@ const isUserAdmin = trip &&
     directionsService.route(request, (result: any, status: any) => {
       if (status === window.google.maps.DirectionsStatus.OK) {
         console.log('Ruta calculada exitosamente:', result);
-        
+
         // Configurar el renderer de direcciones
         directionsRenderer.setDirections(result);
         directionsRenderer.setOptions({
@@ -1351,29 +1356,29 @@ const isUserAdmin = trip &&
         // Calcular métricas de la ruta
         let totalDistance = 0;
         let totalDuration = 0;
-        
+
         result.routes[0].legs.forEach((leg: any) => {
           totalDistance += leg.distance.value;
           totalDuration += leg.duration.value;
         });
-        
+
         // Convertir a unidades legibles
         const distanceKm = (totalDistance / 1000).toFixed(1);
         const durationHours = Math.floor(totalDuration / 3600);
         const durationMinutes = Math.floor((totalDuration % 3600) / 60);
-        
+
         let durationText = '';
         if (durationHours > 0) {
           durationText = `${durationHours}h ${durationMinutes}m`;
         } else {
           durationText = `${durationMinutes}m`;
         }
-        
+
         setRouteDistance(`${distanceKm} km`);
         setRouteDuration(durationText);
-        
+
         console.log(`Ruta completa: ${distanceKm} km, ${durationText}`);
-        
+
         // Ajustar vista del mapa para mostrar toda la ruta
         const bounds = new window.google.maps.LatLngBounds();
         result.routes[0].legs.forEach((leg: any) => {
@@ -1381,7 +1386,7 @@ const isUserAdmin = trip &&
           bounds.extend(leg.end_location);
         });
         map.fitBounds(bounds);
-        
+
         // Agregar marcadores personalizados
         new window.google.maps.Marker({
           position: origin,
@@ -1392,7 +1397,7 @@ const isUserAdmin = trip &&
             scaledSize: new window.google.maps.Size(40, 40)
           }
         });
-        
+
         new window.google.maps.Marker({
           position: destination,
           map: map,
@@ -1402,7 +1407,7 @@ const isUserAdmin = trip &&
             scaledSize: new window.google.maps.Size(40, 40)
           }
         });
-        
+
       } else {
         console.error('Error calculando ruta:', status);
         setRouteDistance('Error al calcular ruta');
@@ -1412,8 +1417,300 @@ const isUserAdmin = trip &&
     });
   };
 
+  // Calcular ruta de vuelo con aeropuertos
+  const calculateFlightRoute = async (origin: { lat: number, lng: number }, destination: { lat: number, lng: number }) => {
+    if (!map) return;
+
+    console.log('🛫 Calculando ruta de vuelo con aeropuertos...');
+
+    try {
+      // Buscar aeropuerto más cercano al origen
+      const originAirport = await findNearestAirport(origin);
+      // Buscar aeropuerto más cercano al destino
+      const destinationAirport = await findNearestAirport(destination);
+
+      if (!originAirport || !destinationAirport) {
+        console.error('No se encontraron aeropuertos cercanos');
+        toast.error('No se encontraron aeropuertos cercanos. Mostrando ruta directa.');
+        showRouteFallback(origin, destination);
+        return;
+      }
+
+      console.log('🛫 Aeropuerto origen:', originAirport.name);
+      console.log('🛬 Aeropuerto destino:', destinationAirport.name);
+
+      // 1. Ruta en auto desde ubicación actual hasta aeropuerto origen
+      const toAirportRequest = {
+        origin: origin,
+        destination: originAirport.location,
+        travelMode: window.google.maps.TravelMode.DRIVING
+      };
+
+      directionsService.route(toAirportRequest, (result1: any, status1: any) => {
+        if (status1 === window.google.maps.DirectionsStatus.OK) {
+          // Dibujar ruta al aeropuerto origen (verde)
+          const toAirportRenderer = new window.google.maps.DirectionsRenderer({
+            map: map,
+            suppressMarkers: true,
+            polylineOptions: {
+              strokeColor: '#4CAF50',
+              strokeWeight: 4,
+              strokeOpacity: 0.8
+            }
+          });
+          toAirportRenderer.setDirections(result1);
+
+          // 2. Vuelo (línea curva geodésica) entre aeropuertos
+          const flightPath = new window.google.maps.Polyline({
+            path: [originAirport.location, destinationAirport.location],
+            geodesic: true, // Curvatura de la Tierra
+            strokeColor: '#2196F3',
+            strokeOpacity: 0.8,
+            strokeWeight: 5,
+            icons: [{
+              icon: {
+                path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                scale: 4,
+                strokeColor: '#2196F3',
+                strokeWeight: 2,
+                fillColor: '#2196F3',
+                fillOpacity: 1
+              },
+              offset: '50%'
+            }, {
+              icon: {
+                path: 'M 0,-2 L -2,2 L 0,1 L 2,2 Z', // Forma de avión simplificada
+                scale: 3,
+                strokeColor: '#1976D2',
+                strokeWeight: 1,
+                fillColor: '#FFFFFF',
+                fillOpacity: 1,
+                rotation: 0
+              },
+              offset: '25%',
+              repeat: '25%'
+            }
+            ],
+            map: map
+          });
+          // Agregar efecto de sombra con una segunda línea
+          const flightPathShadow = new window.google.maps.Polyline({
+            path: [originAirport.location, destinationAirport.location],
+            geodesic: true,
+            strokeColor: '#000000',
+            strokeOpacity: 0.3,
+            strokeWeight: 7,
+            map: map,
+            zIndex: 1
+          });
+
+          // Línea principal encima de la sombra
+          flightPath.setOptions({ zIndex: 2 });
+
+          // 3. Ruta desde aeropuerto destino hasta destino final
+          const fromAirportRequest = {
+            origin: destinationAirport.location,
+            destination: destination,
+            travelMode: window.google.maps.TravelMode.DRIVING
+          };
+
+          directionsService.route(fromAirportRequest, (result2: any, status2: any) => {
+            if (status2 === window.google.maps.DirectionsStatus.OK) {
+              // Dibujar ruta desde aeropuerto destino (naranja)
+              const fromAirportRenderer = new window.google.maps.DirectionsRenderer({
+                map: map,
+                suppressMarkers: true,
+                polylineOptions: {
+                  strokeColor: '#FF9800',
+                  strokeWeight: 4,
+                  strokeOpacity: 0.8
+                }
+              });
+              fromAirportRenderer.setDirections(result2);
+
+              // Calcular distancias y tiempos totales
+              const distance1 = result1.routes[0].legs[0].distance.value;
+              const duration1 = result1.routes[0].legs[0].duration.value;
+              const flightDistance = calculateDistance(
+                originAirport.location.lat,
+                originAirport.location.lng,
+                destinationAirport.location.lat,
+                destinationAirport.location.lng
+              ) * 1000; // convertir a metros
+              const flightDuration = (flightDistance / 1000) / 800 * 3600; // 800 km/h promedio
+              const distance2 = result2.routes[0].legs[0].distance.value;
+              const duration2 = result2.routes[0].legs[0].duration.value;
+
+              const totalDistance = distance1 + flightDistance + distance2;
+              const totalDuration = duration1 + flightDuration + duration2;
+
+              const distanceKm = (totalDistance / 1000).toFixed(1);
+              const durationHours = Math.floor(totalDuration / 3600);
+              const durationMinutes = Math.floor((totalDuration % 3600) / 60);
+
+              let durationText = '';
+              if (durationHours > 0) {
+                durationText = `${durationHours}h ${durationMinutes}m`;
+              } else {
+                durationText = `${durationMinutes}m`;
+              }
+
+              setRouteDistance(`${distanceKm} km`);
+              setRouteDuration(durationText);
+
+              // Marcadores personalizados
+              new window.google.maps.Marker({
+                position: origin,
+                map: map,
+                title: 'Punto de partida',
+                icon: {
+                  url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                  scaledSize: new window.google.maps.Size(40, 40)
+                }
+              });
+
+              new window.google.maps.Marker({
+                position: originAirport.location,
+                map: map,
+                title: `✈️ ${originAirport.name}`,
+                icon: {
+                  url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                  scaledSize: new window.google.maps.Size(35, 35)
+                },
+                label: {
+                  text: '✈️',
+                  fontSize: '20px'
+                }
+              });
+
+              new window.google.maps.Marker({
+                position: destinationAirport.location,
+                map: map,
+                title: `✈️ ${destinationAirport.name}`,
+                icon: {
+                  url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                  scaledSize: new window.google.maps.Size(35, 35)
+                },
+                label: {
+                  text: '✈️',
+                  fontSize: '20px'
+                }
+              });
+
+              new window.google.maps.Marker({
+                position: destination,
+                map: map,
+                title: 'Destino final',
+                icon: {
+                  url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                  scaledSize: new window.google.maps.Size(40, 40)
+                }
+              });
+
+              if (currentLocation) {
+                map.setCenter(currentLocation);
+                map.setZoom(10); // Zoom medio para ver la ruta al aeropuerto
+
+                console.log('📍 Mapa centrado en ubicación actual:', currentLocation);
+              } else {
+                // Fallback: si no hay ubicación actual, ajustar a toda la ruta
+                const bounds = new window.google.maps.LatLngBounds();
+                bounds.extend(origin);
+                bounds.extend(originAirport.location);
+                bounds.extend(destinationAirport.location);
+                bounds.extend(destination);
+                map.fitBounds(bounds);
+              }
+
+              console.log(`🛫 Ruta de vuelo: ${distanceKm} km, ${durationText}`);
+              toast.success(`🛫 Ruta calculada: ${originAirport.name} → ${destinationAirport.name}`);
+            }
+          });
+        }
+      });
+
+    } catch (error) {
+      console.error('Error calculando ruta de vuelo:', error);
+      toast.error('Error al calcular ruta de vuelo');
+      showRouteFallback(origin, destination);
+    }
+  };
+
+  // Buscar aeropuerto más cercano
+  const findNearestAirport = async (location: { lat: number, lng: number }): Promise<{ name: string, location: { lat: number, lng: number } } | null> => {
+    return new Promise((resolve) => {
+      if (!map) {
+        resolve(null);
+        return;
+      }
+
+      const placesService = new window.google.maps.places.PlacesService(map);
+      const request = {
+        location: new window.google.maps.LatLng(location.lat, location.lng),
+        radius: 200000, // 100km de radio
+        keyword: 'aeropuerto airport internacional',
+        type: 'airport'
+      };
+
+      placesService.nearbySearch(request, (results: any[], status: any) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
+          console.log(`🛫 Encontrados ${results.length} aeropuertos cercanos`);
+
+          // Filtrar solo aeropuertos importantes (con "aeropuerto" o "airport" en el nombre)
+          const majorAirports = results.filter(airport => {
+            const name = airport.name.toLowerCase();
+            return name.includes('aeropuerto') ||
+              name.includes('airport') ||
+              name.includes('internacional') ||
+              name.includes('international');
+          });
+
+          const airportsToSearch = majorAirports.length > 0 ? majorAirports : results;
+
+          // Ordenar por distancia
+          const sortedAirports = airportsToSearch.sort((a, b) => {
+            const distA = calculateDistance(
+              location.lat,
+              location.lng,
+              a.geometry.location.lat(),
+              a.geometry.location.lng()
+            );
+            const distB = calculateDistance(
+              location.lat,
+              location.lng,
+              b.geometry.location.lat(),
+              b.geometry.location.lng()
+            );
+            return distA - distB;
+          });
+
+          const nearestAirport = sortedAirports[0];
+          const distance = calculateDistance(
+            location.lat,
+            location.lng,
+            nearestAirport.geometry.location.lat(),
+            nearestAirport.geometry.location.lng()
+          );
+
+          console.log(`✈️ Aeropuerto más cercano: ${nearestAirport.name} (${distance.toFixed(1)} km)`);
+
+          resolve({
+            name: nearestAirport.name,
+            location: {
+              lat: nearestAirport.geometry.location.lat(),
+              lng: nearestAirport.geometry.location.lng()
+            }
+          });
+        } else {
+          console.log('❌ No se encontraron aeropuertos cercanos');
+          resolve(null);
+        }
+      });
+    });
+  };
+
   // Función fallback para mostrar ruta sin Directions API
-  const showRouteFallback = (origin: {lat: number, lng: number}, destination: {lat: number, lng: number}) => {
+  const showRouteFallback = (origin: { lat: number, lng: number }, destination: { lat: number, lng: number }) => {
     if (!map) return;
 
     // Agregar marcadores de origen y destino
@@ -1426,7 +1723,7 @@ const isUserAdmin = trip &&
         scaledSize: new window.google.maps.Size(32, 32)
       }
     });
-    
+
     const destinationMarker = new window.google.maps.Marker({
       position: destination,
       map: map,
@@ -1450,7 +1747,7 @@ const isUserAdmin = trip &&
     // Calcular distancia en línea recta
     const distance = calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng);
     setRouteDistance(`${distance.toFixed(1)} km`);
-    
+
     // Estimar tiempo basado en el vehículo
     let estimatedTime = 0;
     switch (trip?.vehicle) {
@@ -1464,7 +1761,7 @@ const isUserAdmin = trip &&
         estimatedTime = Math.ceil(distance / 60); // 60 km/h promedio
         break;
     }
-    
+
     const hours = Math.floor(estimatedTime);
     const minutes = Math.round((estimatedTime - hours) * 60);
     let durationText = '';
@@ -1473,15 +1770,15 @@ const isUserAdmin = trip &&
     } else {
       durationText = `${minutes}m`;
     }
-    
+
     setRouteDuration(durationText);
-    
+
     // Ajustar el zoom para mostrar ambos puntos
     const bounds = new window.google.maps.LatLngBounds();
     bounds.extend(origin);
     bounds.extend(destination);
     map.fitBounds(bounds);
-    
+
     console.log(`Ruta fallback: ${distance.toFixed(1)} km, ${durationText}`);
   };
 
@@ -1494,7 +1791,7 @@ const isUserAdmin = trip &&
             lng: position.coords.longitude
           };
           setCurrentLocation(location);
-          
+
           // Agregar marcador de ubicación actual
           if (map) {
             new window.google.maps.Marker({
@@ -1507,7 +1804,7 @@ const isUserAdmin = trip &&
               }
             });
           }
-          
+
           // Calcular distancia desde ubicación actual al destino
           if (trip && trip.destinationLatitude && trip.destinationLongitude) {
             const distance = calculateDistance(
@@ -1532,19 +1829,19 @@ const isUserAdmin = trip &&
     const R = 6371; // Radio de la Tierra en kilómetros
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c; // Distancia en kilómetros
     return distance;
   };
 
   // Función para calcular y mostrar métricas de distancia
   const calculateDistanceMetrics = () => {
-    if (!trip || !trip.originLatitude || !trip.originLongitude || 
-        !trip.destinationLatitude || !trip.destinationLongitude) {
+    if (!trip || !trip.originLatitude || !trip.originLongitude ||
+      !trip.destinationLatitude || !trip.destinationLongitude) {
       return;
     }
 
@@ -1556,7 +1853,7 @@ const isUserAdmin = trip &&
     );
 
     console.log(`Distancia en línea recta: ${distance.toFixed(2)} km`);
-    
+
     // Si tenemos ubicación actual, calcular distancia desde ahí
     if (currentLocation) {
       const distanceFromCurrent = calculateDistance(
@@ -1577,15 +1874,15 @@ const isUserAdmin = trip &&
     }
 
     console.log(`🔍 Aplicando zoom en ${context}:`, location);
-    
+
     const zoom = trip?.vehicle === 'auto' ? 16 : 18;
-    
+
     // Aplicar zoom inmediatamente
     map.setCenter(location);
     map.setZoom(zoom);
     setMapZoom(zoom);
     console.log(`🔍 Zoom aplicado en ${context}: ${zoom}x`);
-    
+
     // Múltiples intentos para asegurar el zoom
     const applyZoomAttempt = (attempt: number) => {
       setTimeout(() => {
@@ -1596,7 +1893,7 @@ const isUserAdmin = trip &&
         }
       }, attempt * 300);
     };
-    
+
     // Aplicar zoom en múltiples momentos
     applyZoomAttempt(1); // 300ms
     applyZoomAttempt(2); // 600ms
@@ -1604,10 +1901,14 @@ const isUserAdmin = trip &&
   };
 
   // Función para iniciar navegación en tiempo real
-  const startNavigation = () => {
+  const startNavigation = (mode?: 'to-origin' | 'to-destination') => {
     if (!trip || !directionsService || !directionsRenderer) {
       toast.error('No se puede iniciar la navegación. Verifica tu conexión.');
       return;
+    }
+
+    if (mode) {
+      setNavigationMode(mode);
     }
 
     // Si no hay ubicación actual, obtenerla primero
@@ -1621,7 +1922,7 @@ const isUserAdmin = trip &&
             };
             setCurrentLocation(location);
             // Iniciar navegación después de obtener la ubicación
-            startNavigationWithLocation(location);
+            startNavigationWithLocation(location,mode);
           },
           (error) => {
             console.error('Error obteniendo ubicación:', error);
@@ -1640,27 +1941,50 @@ const isUserAdmin = trip &&
     }
 
     // Si ya tenemos ubicación, iniciar navegación directamente
-    startNavigationWithLocation(currentLocation);
+    startNavigationWithLocation(currentLocation, mode);
   };
 
   // Función auxiliar para iniciar navegación con ubicación
-  const startNavigationWithLocation = (location: {lat: number, lng: number}) => {
+  const startNavigationWithLocation = (location: { lat: number, lng: number }, mode?: 'to-origin' | 'to-destination') => {
     if (!trip || !location || !directionsService || !directionsRenderer || !map) {
       return;
     }
 
     setIsNavigating(true);
     setCurrentStep(0);
-    
+
+    const currentMode = mode || navigationMode;
+
     // Para navegación, usar ubicación actual como origen
     const origin = location;
-    const destination = { 
-      lat: trip.destinationLatitude!, 
-      lng: trip.destinationLongitude! 
-    };
+    let destination: { lat: number, lng: number };
+    let destinationName: string;
 
-    console.log('🚗 Iniciando navegación desde:', origin, 'hasta:', destination);
+    if (currentMode === 'to-origin' && trip.originLatitude && trip.originLongitude) {
+      // Navegación hacia el origen
+      destination = {
+        lat: trip.originLatitude,
+        lng: trip.originLongitude
+      };
+      destinationName = trip.origin || 'Origen del viaje';
+      console.log('🚗 Iniciando navegación al ORIGEN:', destination);
+    } else {
+      // Navegación hacia el destino final
+      destination = {
+        lat: trip.destinationLatitude!,
+        lng: trip.destinationLongitude!
+      };
+      destinationName = trip.destination;
+      console.log('🚗 Iniciando navegación al DESTINO:', destination);
+    }
 
+    // Si es avión, usar ruta de vuelo
+    if (trip.vehicle === 'avion') {
+      startFlightNavigation(origin, destination);
+      return;
+    }
+
+    directionsRenderer.setDirections({ routes: [] });
     // Configurar opciones de navegación
     const navigationRequest = {
       origin: origin,
@@ -1678,17 +2002,17 @@ const isUserAdmin = trip &&
     directionsService.route(navigationRequest, (result: any, status: any) => {
       if (status === window.google.maps.DirectionsStatus.OK) {
         console.log('✅ Ruta de navegación calculada:', result);
-        
+
         const route = result.routes[0];
         const steps = route.legs[0].steps;
         setNavigationSteps(steps);
-        
+
         // Configurar renderer para navegación con estilo Google Maps
         directionsRenderer.setDirections(result);
         directionsRenderer.setOptions({
           suppressMarkers: false,
           polylineOptions: {
-            strokeColor: '#1976d2',
+            strokeColor: navigationMode === 'to-origin' ? '#4CAF50' : '#1976d2',
             strokeWeight: 8,
             strokeOpacity: 0.9
           },
@@ -1703,51 +2027,54 @@ const isUserAdmin = trip &&
         // Calcular métricas de navegación
         let totalDistance = 0;
         let totalDuration = 0;
-        
+
         route.legs.forEach((leg: any) => {
           totalDistance += leg.distance.value;
           totalDuration += leg.duration.value;
         });
-        
+
         const distanceKm = (totalDistance / 1000).toFixed(1);
         const durationHours = Math.floor(totalDuration / 3600);
         const durationMinutes = Math.floor((totalDuration % 3600) / 60);
-        
+
         let durationText = '';
         if (durationHours > 0) {
           durationText = `${durationHours}h ${durationMinutes}m`;
         } else {
           durationText = `${durationMinutes}m`;
         }
-        
+
         setRemainingDistance(`${distanceKm} km`);
         setRemainingTime(durationText);
-        
+
         // Iniciar seguimiento de ubicación
         startLocationTracking();
-        
+
         // Activar seguimiento automático del vehículo
         setIsFollowingVehicle(true);
-        
+
         // Configurar primera instrucción
         if (steps.length > 0) {
-          setNextInstruction(steps[0].instructions.replace(/<[^>]*>/g, ''));
+          const firstInstruction = navigationMode === 'to-origin'
+            ? `Dirigiéndote al origen: ${destinationName}`
+            : steps[0].instructions.replace(/<[^>]*>/g, '');
+          setNextInstruction(firstInstruction);
           updateNavigationMetrics(steps, 0);
         }
-        
+
         // Inicializar chat con mensaje de bienvenida
         initializeChat();
-        
+
         // Ajustar vista para navegación con zoom cercano a la ubicación actual
         if (location && map) {
           // Hacer zoom inmediato a la ubicación actual
           const zoomLevel = trip?.vehicle === 'auto' ? 16 : 18;
-          
+
           // Aplicar zoom inmediatamente
           map.setCenter(location);
           map.setZoom(zoomLevel);
           setMapZoom(zoomLevel);
-          
+
           // Asegurar que el zoom se mantenga con múltiples intentos
           setTimeout(() => {
             if (map && location) {
@@ -1756,7 +2083,7 @@ const isUserAdmin = trip &&
               console.log('📍 Zoom aplicado (intento 1):', location, 'zoom:', zoomLevel);
             }
           }, 100);
-          
+
           setTimeout(() => {
             if (map && location) {
               map.setCenter(location);
@@ -1764,7 +2091,7 @@ const isUserAdmin = trip &&
               console.log('📍 Zoom aplicado (intento 2):', location, 'zoom:', zoomLevel);
             }
           }, 500);
-          
+
           setTimeout(() => {
             if (map && location) {
               map.setCenter(location);
@@ -1772,7 +2099,7 @@ const isUserAdmin = trip &&
               console.log('📍 Zoom aplicado (intento 3):', location, 'zoom:', zoomLevel);
             }
           }, 1000);
-          
+
           console.log('📍 Zoom inicial aplicado a ubicación actual:', location, 'zoom:', zoomLevel);
         } else {
           console.log('⚠️ No hay ubicación actual o mapa, usando fallback');
@@ -1786,9 +2113,9 @@ const isUserAdmin = trip &&
             map.fitBounds(bounds);
           }
         }
-        
+
         toast.success('🚗 Navegación iniciada. ¡Buen viaje!');
-        
+
       } else {
         console.error('❌ Error calculando ruta de navegación:', status);
         toast.error('Error al calcular la ruta de navegación');
@@ -1797,26 +2124,149 @@ const isUserAdmin = trip &&
     });
   };
 
+  // Iniciar navegación en modo vuelo
+  const startFlightNavigation = async (location: { lat: number, lng: number }, destination: { lat: number, lng: number }) => {
+    if (!map) return;
+
+    console.log('🛫 Iniciando navegación en modo vuelo...');
+    console.log('📍 Ubicación recibida:', location);
+
+    try {
+      // Buscar aeropuertos
+      const originAirport = await findNearestAirport(location);
+      const destinationAirport = await findNearestAirport(destination);
+
+      if (!originAirport || !destinationAirport) {
+        console.error('No se encontraron aeropuertos cercanos');
+        toast.error('No se encontraron aeropuertos cercanos.');
+        setIsNavigating(false);
+        return;
+      }
+
+      // Calcular ruta visual con aeropuertos
+      await calculateFlightRoute(location, destination);
+
+      // Para navegación GPS, solo usamos la primera etapa (al aeropuerto origen)
+      const toAirportRequest = {
+        origin: location, // Usar la ubicación pasada como parámetro
+        destination: originAirport.location,
+        travelMode: window.google.maps.TravelMode.DRIVING
+      };
+
+      directionsService.route(toAirportRequest, (result: any, status: any) => {
+        if (status === window.google.maps.DirectionsStatus.OK) {
+          const route = result.routes[0];
+          const steps = route.legs[0].steps;
+          setNavigationSteps(steps);
+
+          // Calcular métricas
+          let totalDistance = 0;
+          let totalDuration = 0;
+
+          route.legs.forEach((leg: any) => {
+            totalDistance += leg.distance.value;
+            totalDuration += leg.duration.value;
+          });
+
+          const distanceKm = (totalDistance / 1000).toFixed(1);
+          const durationHours = Math.floor(totalDuration / 3600);
+          const durationMinutes = Math.floor((totalDuration % 3600) / 60);
+
+          let durationText = '';
+          if (durationHours > 0) {
+            durationText = `${durationHours}h ${durationMinutes}m`;
+          } else {
+            durationText = `${durationMinutes}m`;
+          }
+
+          setRemainingDistance(`${distanceKm} km`);
+          setRemainingTime(durationText);
+
+          // Iniciar seguimiento
+          startLocationTracking();
+          setIsFollowingVehicle(true);
+
+          // Configurar primera instrucción
+          if (steps.length > 0) {
+            setNextInstruction(`🚗 Dirigiéndote al aeropuerto: ${originAirport.name}`);
+            updateNavigationMetrics(steps, 0);
+          }
+
+          // Inicializar chat
+          initializeChat();
+
+          // CENTRAR EN LA UBICACIÓN ACTUAL CON MÚLTIPLES INTENTOS
+          const zoomLevel = 14;
+
+          // Aplicar zoom inmediatamente
+          map.setCenter(location);
+          map.setZoom(zoomLevel);
+          setMapZoom(zoomLevel);
+
+          // Múltiples intentos para asegurar el centrado
+          setTimeout(() => {
+            if (map && location) {
+              map.setCenter(location);
+              map.setZoom(zoomLevel);
+              console.log('📍 Zoom aplicado (intento 1) en ubicación actual:', location, 'zoom:', zoomLevel);
+            }
+          }, 100);
+
+          setTimeout(() => {
+            if (map && location) {
+              map.setCenter(location);
+              map.setZoom(zoomLevel);
+              console.log('📍 Zoom aplicado (intento 2) en ubicación actual:', location, 'zoom:', zoomLevel);
+            }
+          }, 500);
+
+          setTimeout(() => {
+            if (map && location) {
+              map.setCenter(location);
+              map.setZoom(zoomLevel);
+              console.log('📍 Zoom aplicado (intento 3) en ubicación actual:', location, 'zoom:', zoomLevel);
+            }
+          }, 1000);
+
+          console.log('📍 Mapa centrado en tu ubicación actual:', location);
+
+          toast.success(`🛫 Navegación iniciada hacia ${originAirport.name}`);
+          console.log('✅ Navegación en modo vuelo iniciada');
+
+        } else {
+          console.error('❌ Error calculando ruta al aeropuerto:', status);
+          toast.error('Error al calcular la ruta al aeropuerto');
+          setIsNavigating(false);
+        }
+      });
+
+    } catch (error) {
+      console.error('Error en navegación de vuelo:', error);
+      toast.error('Error al iniciar navegación de vuelo');
+      setIsNavigating(false);
+    }
+  };
+
   // Función para navegación simple (fallback)
-  const startSimpleNavigation = (origin: {lat: number, lng: number}, destination: {lat: number, lng: number}) => {
+  const startSimpleNavigation = (origin: { lat: number, lng: number }, destination: { lat: number, lng: number }) => {
     // Crear instrucciones simples
     const distance = calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng);
     const estimatedTime = Math.ceil(distance / 60); // 60 km/h promedio
-    
+
     const simpleSteps = [{
       instructions: `Dirígete hacia ${trip?.destination}`,
       distance: { text: `${distance.toFixed(1)} km`, value: distance * 1000 },
       duration: { text: `${estimatedTime} min`, value: estimatedTime * 60 }
     }];
-    
+
     setNavigationSteps(simpleSteps);
     setNextInstruction(simpleSteps[0].instructions);
     setRemainingDistance(`${distance.toFixed(1)} km`);
     setRemainingTime(`${estimatedTime} min`);
-    
+
     // Iniciar seguimiento de ubicación
     startLocationTracking();
-    
+
     toast.success('Navegación simple iniciada. ¡Buen viaje!');
   };
 
@@ -1830,22 +2280,23 @@ const isUserAdmin = trip &&
     setNextInstruction('');
     setIsFollowingVehicle(false);
     setMapZoom(8);
-    
+    setNavigationMode(null);
+
     // Limpiar chat
     setChatMessages([]);
     setIsChatOpen(false);
-    
+
     // Limpiar lugares recomendados
     setRecommendedPlaces([]);
     mapPins.forEach(pin => pin.setMap(null));
     setMapPins([]);
     setSelectedPlace(null);
-    
+
     if (watchId) {
       navigator.geolocation.clearWatch(watchId);
       setWatchId(null);
     }
-    
+
     toast.info('Navegación detenida');
   };
 
@@ -1863,25 +2314,25 @@ const isUserAdmin = trip &&
           lat: position.coords.latitude,
           lng: position.coords.longitude
         };
-        
+
         console.log('📍 Nueva ubicación GPS:', newLocation);
         setCurrentLocation(newLocation);
-        
+
         if (isNavigating && navigationSteps.length > 0) {
           updateNavigationProgress(newLocation);
         }
-        
+
         // Actualizar marcador de ubicación actual en el mapa
         if (map) {
           // Remover marcador anterior si existe
           if ((window as any).currentLocationMarker) {
             (window as any).currentLocationMarker.setMap(null);
           }
-          
+
           // Determinar icono según el vehículo
           let vehicleIcon = 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png';
           let iconSize = 32;
-          
+
           if (trip?.vehicle === 'auto') {
             vehicleIcon = 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'; // Usar blue-dot como fallback
             iconSize = 40;
@@ -1889,7 +2340,7 @@ const isUserAdmin = trip &&
             vehicleIcon = 'https://maps.google.com/mapfiles/ms/icons/walking.png';
             iconSize = 28;
           }
-          
+
           // Crear nuevo marcador de ubicación actual
           (window as any).currentLocationMarker = new window.google.maps.Marker({
             position: newLocation,
@@ -1898,21 +2349,21 @@ const isUserAdmin = trip &&
             icon: {
               url: vehicleIcon,
               scaledSize: new window.google.maps.Size(iconSize, iconSize),
-              anchor: new window.google.maps.Point(iconSize/2, iconSize/2)
+              anchor: new window.google.maps.Point(iconSize / 2, iconSize / 2)
             },
             animation: window.google.maps.Animation.BOUNCE
           });
-          
+
           // Si está navegando, hacer zoom y seguir al vehículo
           if (isNavigating && isFollowingVehicle) {
             // Centrar el mapa en la ubicación actual
             map.setCenter(newLocation);
-            
+
             // Ajustar zoom para mostrar calles cercanas
             const newZoom = trip?.vehicle === 'auto' ? 16 : 18; // Zoom más cercano para caminando
             map.setZoom(newZoom);
             setMapZoom(newZoom);
-            
+
             console.log(`📍 Mapa centrado en vehículo - Zoom: ${newZoom}`);
           }
         }
@@ -1920,7 +2371,7 @@ const isUserAdmin = trip &&
       (error) => {
         console.error('❌ Error en seguimiento de ubicación:', error);
         let errorMessage = 'Error en el seguimiento de ubicación';
-        
+
         switch (error.code) {
           case error.PERMISSION_DENIED:
             errorMessage = 'Permisos de ubicación denegados. Activa la ubicación en tu navegador.';
@@ -1932,7 +2383,7 @@ const isUserAdmin = trip &&
             errorMessage = 'Timeout obteniendo ubicación. Intenta nuevamente.';
             break;
         }
-        
+
         toast.error(errorMessage);
       },
       {
@@ -1941,13 +2392,13 @@ const isUserAdmin = trip &&
         maximumAge: 10000
       }
     );
-    
+
     setWatchId(id);
     console.log('✅ Seguimiento GPS iniciado con ID:', id);
   };
 
   // Función para actualizar progreso de navegación
-  const updateNavigationProgress = (userLocation: {lat: number, lng: number}) => {
+  const updateNavigationProgress = (userLocation: { lat: number, lng: number }) => {
     if (!navigationSteps.length) return;
 
     console.log('🔄 Actualizando progreso de navegación...');
@@ -1964,7 +2415,7 @@ const isUserAdmin = trip &&
         stepLocation.lat(),
         stepLocation.lng()
       );
-      
+
       if (distance < minDistance) {
         minDistance = distance;
         closestStepIndex = index;
@@ -1975,10 +2426,10 @@ const isUserAdmin = trip &&
     if (closestStepIndex !== currentStep) {
       console.log(`📍 Paso actualizado: ${currentStep} → ${closestStepIndex}`);
       setCurrentStep(closestStepIndex);
-      
+
       // Actualizar métricas
       updateNavigationMetrics(navigationSteps, closestStepIndex);
-      
+
       // Actualizar siguiente instrucción
       if (closestStepIndex < navigationSteps.length - 1) {
         const nextStep = navigationSteps[closestStepIndex + 1];
@@ -1987,7 +2438,7 @@ const isUserAdmin = trip &&
       } else {
         setNextInstruction('🎉 ¡Has llegado a tu destino!');
         console.log('🎉 Navegación completada');
-        
+
         // Detener navegación automáticamente al llegar
         setTimeout(() => {
           stopNavigation();
@@ -2012,7 +2463,7 @@ const isUserAdmin = trip &&
     const distanceKm = (totalDistance / 1000).toFixed(1);
     const durationHours = Math.floor(totalDuration / 3600);
     const durationMinutes = Math.floor((totalDuration % 3600) / 60);
-    
+
     let durationText = '';
     if (durationHours > 0) {
       durationText = `${durationHours}h ${durationMinutes}m`;
@@ -2022,7 +2473,7 @@ const isUserAdmin = trip &&
 
     setRemainingDistance(`${distanceKm} km`);
     setRemainingTime(durationText);
-    
+
     // Verificar si necesitamos obtener recomendaciones de IA cada 100km
     const currentDistanceKm = parseFloat(distanceKm);
     if (currentDistanceKm > 0 && currentDistanceKm % 100 < 10 && currentDistanceKm > lastRecommendationKm + 90) {
@@ -2031,15 +2482,15 @@ const isUserAdmin = trip &&
   };
 
   // Función para obtener recomendaciones de Gemini AI
-  const getAIRecommendations = async (location: {lat: number, lng: number} | null, distanceTraveled: number) => {
+  const getAIRecommendations = async (location: { lat: number, lng: number } | null, distanceTraveled: number) => {
     if (!location || isLoadingRecommendations) return;
-    
+
     setIsLoadingRecommendations(true);
     setLastRecommendationKm(distanceTraveled);
-    
+
     try {
       console.log('🤖 Obteniendo recomendaciones de Gemini AI...');
-      
+
       // Usar Google Places API para encontrar lugares cercanos
       const placesService = new window.google.maps.places.PlacesService(map);
       const request = {
@@ -2047,7 +2498,7 @@ const isUserAdmin = trip &&
         radius: 50000, // 50km de radio
         type: ['tourist_attraction', 'restaurant', 'gas_station', 'lodging', 'shopping_mall']
       };
-      
+
       placesService.nearbySearch(request, async (results: any[], status: any) => {
         if (status === window.google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
           // Preparar contexto para Gemini
@@ -2057,10 +2508,10 @@ const isUserAdmin = trip &&
             types: place.types,
             vicinity: place.vicinity
           }));
-          
+
           // Llamar a Gemini AI
           const geminiResponse = await callGeminiAI(nearbyPlaces, distanceTraveled, trip);
-          
+
           if (geminiResponse && geminiResponse.recommendations) {
             setAiRecommendations(geminiResponse.recommendations);
             setShowRecommendations(true);
@@ -2071,7 +2522,7 @@ const isUserAdmin = trip &&
         }
         setIsLoadingRecommendations(false);
       });
-      
+
     } catch (error) {
       console.error('Error obteniendo recomendaciones de IA:', error);
       setIsLoadingRecommendations(false);
@@ -2082,7 +2533,7 @@ const isUserAdmin = trip &&
   const callGeminiAI = async (nearbyPlaces: any[], distanceTraveled: number, tripData: any) => {
     try {
       const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      
+
       if (!apiKey) {
         console.warn('⚠️ Gemini API key no configurada, usando recomendaciones por defecto');
         // Fallback a recomendaciones básicas
@@ -2136,7 +2587,7 @@ IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional antes 
           ]
         }
       `;
-      
+
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
@@ -2156,18 +2607,18 @@ IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional antes 
         console.error('Error parseando respuesta de Gemini:', parseError, 'Respuesta:', text);
         // Fallback a recomendaciones por defecto
         return {
-        recommendations: [
-          {
-            title: "Parada para descansar",
+          recommendations: [
+            {
+              title: "Parada para descansar",
               description: "Te recomendamos hacer una parada para estirar las piernas y tomar algo.",
-            type: "activity",
-            priority: "high",
-            estimated_time: "30"
+              type: "activity",
+              priority: "high",
+              estimated_time: "30"
             }
           ]
         };
       }
-      
+
     } catch (error) {
       console.error('Error llamando a Gemini AI:', error);
       // Fallback a recomendaciones básicas
@@ -2187,17 +2638,17 @@ IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional antes 
 
   // Función para inicializar el chat
   const initializeChat = () => {
-    const locationContext = currentLocation 
+    const locationContext = currentLocation
       ? `Estás ubicado en las coordenadas ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}`
       : 'No tengo acceso a tu ubicación actual';
-    
+
     const welcomeMessage = {
       id: Date.now(),
       type: 'ai',
       message: `¡Hola! Soy tu asistente de viajes. Estoy aquí para ayudarte durante tu viaje a ${trip?.destination}. ${locationContext}. ¿En qué puedo ayudarte?`,
       timestamp: new Date()
     };
-    
+
     setChatMessages([welcomeMessage]);
     setIsChatOpen(true);
   };
@@ -2205,22 +2656,22 @@ IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional antes 
   // Función para enviar mensaje al chat
   const sendChatMessage = async () => {
     if (!chatInput.trim()) return;
-    
+
     const userMessage = {
       id: Date.now(),
       type: 'user',
       message: chatInput,
       timestamp: new Date()
     };
-    
+
     setChatMessages(prev => [...prev, userMessage]);
     setChatInput('');
     setIsTyping(true);
-    
+
     try {
       // Simular respuesta de Gemini AI
       const aiResponse = await generateAIResponse(chatInput);
-      
+
       setTimeout(() => {
         const aiMessage = {
           id: Date.now() + 1,
@@ -2228,11 +2679,11 @@ IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional antes 
           message: aiResponse,
           timestamp: new Date()
         };
-        
+
         setChatMessages(prev => [...prev, aiMessage]);
         setIsTyping(false);
       }, 500); // Reducido de 1500ms a 500ms
-      
+
     } catch (error) {
       console.error('Error enviando mensaje:', error);
       setIsTyping(false);
@@ -2242,11 +2693,11 @@ IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional antes 
   // Función para generar respuesta de IA usando Gemini como cerebro principal
   const generateAIResponse = async (userInput: string): Promise<string> => {
     const lowerInput = userInput.toLowerCase();
-    
+
     try {
       // Primero, usar Gemini para entender la intención del usuario
       const geminiResponse = await generateGeminiResponse(userInput);
-      
+
       // Detectar si el usuario quiere buscar lugares en el DESTINO (no en ubicación actual)
       const wantsDestinationLocation: boolean = !!(
         lowerInput.includes('en mi destino') ||
@@ -2259,29 +2710,29 @@ IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional antes 
 
       // Detectar si el usuario quiere buscar lugares (después de que Gemini responda)
       // Esto permite que Gemini responda primero, y luego buscamos lugares si es necesario
-      const isPlaceSearchQuery = 
-        lowerInput.includes('mejor lugar para comer') || 
+      const isPlaceSearchQuery =
+        lowerInput.includes('mejor lugar para comer') ||
         lowerInput.includes('mejor restaurante') ||
-        lowerInput.includes('mejor lugar para dormir') || 
-        lowerInput.includes('mejor hotel') || 
+        lowerInput.includes('mejor lugar para dormir') ||
+        lowerInput.includes('mejor hotel') ||
         lowerInput.includes('mejores departamentos') ||
-        lowerInput.includes('mejores lugares para visitar') || 
+        lowerInput.includes('mejores lugares para visitar') ||
         lowerInput.includes('mejores atracciones') ||
-        lowerInput.includes('comer') || 
-        lowerInput.includes('restaurante') || 
+        lowerInput.includes('comer') ||
+        lowerInput.includes('restaurante') ||
         lowerInput.includes('comida') ||
-        lowerInput.includes('dormir') || 
-        lowerInput.includes('hotel') || 
-        lowerInput.includes('alojamiento') || 
-        lowerInput.includes('departamento') || 
+        lowerInput.includes('dormir') ||
+        lowerInput.includes('hotel') ||
+        lowerInput.includes('alojamiento') ||
+        lowerInput.includes('departamento') ||
         lowerInput.includes('departamentos') ||
-        lowerInput.includes('atracción') || 
-        lowerInput.includes('turístico') || 
+        lowerInput.includes('atracción') ||
+        lowerInput.includes('turístico') ||
         lowerInput.includes('visitar') ||
-        lowerInput.includes('gasolinera') || 
-        lowerInput.includes('combustible') || 
-        lowerInput.includes('gas') || 
-        lowerInput.includes('nafta') || 
+        lowerInput.includes('gasolinera') ||
+        lowerInput.includes('combustible') ||
+        lowerInput.includes('gas') ||
+        lowerInput.includes('nafta') ||
         lowerInput.includes('cargar') ||
         lowerInput.includes('lugares') ||
         lowerInput.includes('nuevos lugares') ||
@@ -2291,26 +2742,26 @@ IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional antes 
       if (isPlaceSearchQuery) {
         let searchResponse = '';
         const useDestination: boolean = !!(wantsDestinationLocation && trip?.destinationLatitude && trip?.destinationLongitude);
-        
+
         // Buscar lugares según el tipo de consulta, pasando si debe usar destino o ubicación actual
-      if (lowerInput.includes('mejor lugar para comer') || lowerInput.includes('mejor restaurante')) {
+        if (lowerInput.includes('mejor lugar para comer') || lowerInput.includes('mejor restaurante')) {
           searchResponse = await handleBestRestaurantQuery(useDestination);
-      } else if (lowerInput.includes('mejor lugar para dormir') || lowerInput.includes('mejor hotel') || lowerInput.includes('mejores departamentos')) {
+        } else if (lowerInput.includes('mejor lugar para dormir') || lowerInput.includes('mejor hotel') || lowerInput.includes('mejores departamentos')) {
           searchResponse = await handleBestAccommodationQuery(useDestination);
-      } else if (lowerInput.includes('mejores lugares para visitar') || lowerInput.includes('mejores atracciones')) {
+        } else if (lowerInput.includes('mejores lugares para visitar') || lowerInput.includes('mejores atracciones')) {
           searchResponse = await handleBestAttractionsQuery(useDestination);
         } else if (lowerInput.includes('comer') || lowerInput.includes('restaurante') || lowerInput.includes('comida')) {
           searchResponse = await handleRestaurantQuery(useDestination);
-      } else if (lowerInput.includes('dormir') || lowerInput.includes('hotel') || lowerInput.includes('alojamiento') || lowerInput.includes('departamento') || lowerInput.includes('departamentos')) {
+        } else if (lowerInput.includes('dormir') || lowerInput.includes('hotel') || lowerInput.includes('alojamiento') || lowerInput.includes('departamento') || lowerInput.includes('departamentos')) {
           searchResponse = await handleAccommodationQuery(useDestination);
-      } else if (lowerInput.includes('atracción') || lowerInput.includes('turístico') || lowerInput.includes('visitar')) {
+        } else if (lowerInput.includes('atracción') || lowerInput.includes('turístico') || lowerInput.includes('visitar')) {
           searchResponse = await handleAttractionQuery(useDestination);
-    } else if (lowerInput.includes('gasolinera') || lowerInput.includes('combustible') || lowerInput.includes('gas') || lowerInput.includes('nafta') || lowerInput.includes('cargar')) {
+        } else if (lowerInput.includes('gasolinera') || lowerInput.includes('combustible') || lowerInput.includes('gas') || lowerInput.includes('nafta') || lowerInput.includes('cargar')) {
           searchResponse = await handleGasStationQuery(useDestination);
-      } else if (lowerInput.includes('tráfico') || lowerInput.includes('ruta') || lowerInput.includes('dirección')) {
+        } else if (lowerInput.includes('tráfico') || lowerInput.includes('ruta') || lowerInput.includes('dirección')) {
           searchResponse = await handleTrafficQuery();
         }
-        
+
         // Combinar respuesta de Gemini con la búsqueda de lugares
         if (searchResponse) {
           return `${geminiResponse}\n\n${searchResponse}`;
@@ -2336,7 +2787,7 @@ IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional antes 
   const generateGeminiResponse = async (userInput: string): Promise<string> => {
     try {
       const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      
+
       if (!apiKey) {
         console.warn('⚠️ Gemini API key no configurada, usando respuesta genérica');
         toast.warning('Gemini API key no configurada. Configura NEXT_PUBLIC_GEMINI_API_KEY en .env.local');
@@ -2358,11 +2809,11 @@ IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional antes 
         - Presupuesto: ${trip.cost ? `$${trip.cost.toLocaleString()}` : 'No especificado'}
       ` : '';
 
-      const locationContext = currentLocation 
+      const locationContext = currentLocation
         ? `El usuario está ubicado en: ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}`
         : 'No tengo acceso a la ubicación actual del usuario';
 
-      const tipsContext = tips.length > 0 
+      const tipsContext = tips.length > 0
         ? `Lugares ya guardados en el viaje:\n${tips.slice(0, 10).map(t => `- ${t.name} (${t.tipType})`).join('\n')}`
         : 'Aún no hay lugares guardados en este viaje';
 
@@ -2409,8 +2860,8 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
   // Función para manejar consultas de restaurantes
   const handleRestaurantQuery = async (useDestination: boolean = false) => {
     // Determinar qué ubicación usar: destino del viaje o ubicación actual
-    let searchLocation: {lat: number, lng: number} | null = null;
-    
+    let searchLocation: { lat: number, lng: number } | null = null;
+
     if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
       searchLocation = {
         lat: trip.destinationLatitude,
@@ -2423,7 +2874,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
     } else {
       return "No puedo obtener tu ubicación para recomendarte restaurantes. Activa la ubicación o especifica el destino del viaje.";
     }
-    
+
     try {
       // Obtener TODOS los place_ids de restaurantes existentes (de estado local Y base de datos)
       const loadAllExistingRestaurantIds = async () => {
@@ -2433,17 +2884,17 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
           ...tips.filter(tip => tip.tipType === 'restaurant'),
           ...(tipsFromDB || []).filter((tip: any) => tip.tipType === 'restaurant')
         ];
-        
+
         // Obtener place_ids únicos
         const placeIds = new Set<string>();
         const nameLocationKeys = new Set<string>();
-        
+
         allRestaurantTips.forEach(tip => {
           const placeId = tip.place_id || tip.placeId;
           if (placeId) {
             placeIds.add(String(placeId).trim());
           }
-          
+
           // También crear clave nombre+ubicación como respaldo
           const lat = tip.latitude || tip.location?.lat;
           const lng = tip.longitude || tip.location?.lng;
@@ -2451,16 +2902,16 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
             nameLocationKeys.add(`${tip.name.toLowerCase().trim()}_${Number(lat).toFixed(4)}_${Number(lng).toFixed(4)}`);
           }
         });
-        
+
         console.log(`🍽️ Encontrados ${placeIds.size} place_ids únicos y ${nameLocationKeys.size} nombres+ubicaciones únicos de restaurantes existentes`);
-        
+
         return { placeIds: Array.from(placeIds), nameLocationKeys: Array.from(nameLocationKeys) };
       };
-      
+
       const { placeIds, nameLocationKeys } = await loadAllExistingRestaurantIds();
-      
+
       console.log(`🍽️ Buscando restaurantes, excluyendo ${placeIds.length} ya existentes`);
-      
+
       // Buscar lugares de forma asíncrona sin bloquear la respuesta
       findNearbyPlaces('restaurant', {
         maxResults: 5, // Limitar a 5 resultados finales
@@ -2476,7 +2927,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         if (places.length > 0) {
           setRecommendedPlaces(places);
           addPinsToMap(places);
-          
+
           // Agregar a tips
           const newTips = places.map(place => ({
             ...place,
@@ -2484,7 +2935,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
             tipIcon: '🍽️'
           }));
           console.log('🍽️ Agregando tips de restaurantes:', newTips);
-          
+
           // Primero filtrar duplicados
           setTips(prev => {
             const uniqueNewTips = filterDuplicateTips(prev, newTips);
@@ -2492,10 +2943,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
               console.log('⚠️ Todos los restaurantes ya están en tips');
               return prev;
             }
-            
+
             // Agregar tips al estado primero (sin IDs de BD aún)
             const updated = [...prev, ...uniqueNewTips];
-            
+
             // Guardar tips en BD de forma asíncrona (sin bloquear la actualización del estado)
             const tipsToSave = uniqueNewTips.filter(tip => !tip.id || typeof tip.id !== 'number');
             if (tipsToSave.length > 0) {
@@ -2503,7 +2954,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                 // Actualizar el estado con los IDs de BD
                 setTips(prevState => {
                   const updatedState = prevState.map(tip => {
-                    const savedTip = savedTips.find(st => 
+                    const savedTip = savedTips.find(st =>
                       st && (st.placeId || st.place_id) === (tip.place_id || tip.placeId)
                     );
                     if (savedTip && savedTip.id && (!tip.id || typeof tip.id !== 'number')) {
@@ -2515,16 +2966,16 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                 });
               });
             }
-            
+
             console.log('📝 Tips actualizados:', updated);
-          
-          // Agregar pins al mapa con delay para asegurar que el mapa esté listo
+
+            // Agregar pins al mapa con delay para asegurar que el mapa esté listo
             if (uniqueNewTips.length > 0) {
-          setTimeout(() => {
+              setTimeout(() => {
                 addTipPinsToMap(uniqueNewTips);
-          }, 500);
+              }, 500);
             }
-            
+
             return updated;
           });
         } else {
@@ -2535,7 +2986,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         // Mostrar mensaje de error al usuario
         toast.error('Error buscando restaurantes. Intenta de nuevo.');
       });
-      
+
       const existingCount = placeIds.length;
       if (existingCount > 0) {
         return `🍽️ **Buscando otros restaurantes cerca de ti...**\n\nYa tienes ${existingCount} ${existingCount === 1 ? 'restaurante' : 'restaurantes'} en tu lista. Estoy buscando nuevos lugares diferentes para darte más opciones.\n\n💡 **Tip:** Te mostraré restaurantes que aún no están en tu lista.`;
@@ -2549,8 +3000,8 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
   // Función para manejar consultas de alojamiento
   const handleAccommodationQuery = async (useDestination: boolean = false) => {
     // Determinar qué ubicación usar: destino del viaje o ubicación actual
-    let searchLocation: {lat: number, lng: number} | null = null;
-    
+    let searchLocation: { lat: number, lng: number } | null = null;
+
     if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
       searchLocation = {
         lat: trip.destinationLatitude,
@@ -2561,7 +3012,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
     } else {
       return "No puedo obtener tu ubicación para recomendarte alojamiento. Activa la ubicación o especifica el destino del viaje.";
     }
-    
+
     try {
       // Buscar lugares de forma asíncrona sin bloquear la respuesta
       findNearbyPlaces('lodging', {
@@ -2575,7 +3026,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         if (places.length > 0) {
           setRecommendedPlaces(places);
           addPinsToMap(places);
-          
+
           // Agregar a tips
           const newTips = places.map(place => ({
             ...place,
@@ -2597,7 +3048,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       }).catch(error => {
         console.error('Error buscando alojamiento:', error);
       });
-      
+
       return `🏨 **Buscando departamentos y alojamientos cerca de ti...**\n\nEstoy buscando los mejores departamentos y hoteles en tu zona. Te mostraré opciones con precios y calificaciones para que puedas elegir el que más te convenga.\n\n💡 **Tip:** Perfecto para viajes largos o si necesitas descansar.`;
     } catch (error) {
       return "Hubo un problema buscando alojamiento. Intenta de nuevo en un momento.";
@@ -2607,8 +3058,8 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
   // Función para manejar consultas de atracciones
   const handleAttractionQuery = async (useDestination: boolean = false) => {
     // Determinar qué ubicación usar: destino del viaje o ubicación actual
-    let searchLocation: {lat: number, lng: number} | null = null;
-    
+    let searchLocation: { lat: number, lng: number } | null = null;
+
     if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
       searchLocation = {
         lat: trip.destinationLatitude,
@@ -2619,7 +3070,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
     } else {
       return "No puedo obtener tu ubicación para recomendarte atracciones. Activa la ubicación o especifica el destino del viaje.";
     }
-    
+
     try {
       // Buscar lugares de forma asíncrona sin bloquear la respuesta
       findNearbyPlaces('tourist_attraction', {
@@ -2629,7 +3080,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
           const topPlaces = places.slice(0, 3);
           setRecommendedPlaces(topPlaces);
           addPinsToMap(topPlaces);
-          
+
           // Agregar a tips
           const newTips = topPlaces.map(place => ({
             ...place,
@@ -2651,7 +3102,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       }).catch(error => {
         console.error('Error buscando atracciones:', error);
       });
-      
+
       return `🎯 **Buscando atracciones cerca de ti...**\n\nEstoy buscando las mejores atracciones turísticas en tu zona. Te mostraré lugares interesantes para visitar durante tu viaje.\n\n💡 **Tip:** Perfecto para turismo y descubrir nuevos lugares.`;
     } catch (error) {
       return "Hubo un problema buscando atracciones. Intenta de nuevo en un momento.";
@@ -2661,8 +3112,8 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
   // Función para manejar consultas de gasolineras
   const handleGasStationQuery = async (useDestination: boolean = false) => {
     // Determinar qué ubicación usar: destino del viaje o ubicación actual
-    let searchLocation: {lat: number, lng: number} | null = null;
-    
+    let searchLocation: { lat: number, lng: number } | null = null;
+
     if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
       searchLocation = {
         lat: trip.destinationLatitude,
@@ -2673,7 +3124,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
     } else {
       return "No puedo obtener tu ubicación para recomendarte gasolineras. Activa la ubicación o especifica el destino del viaje.";
     }
-    
+
     try {
       // Buscar lugares de forma asíncrona sin bloquear la respuesta
       findNearbyPlaces('gas_station', {
@@ -2683,7 +3134,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
           const topPlaces = places.slice(0, 3);
           setRecommendedPlaces(topPlaces);
           addPinsToMap(topPlaces);
-          
+
           // Agregar a tips
           const newTips = topPlaces.map(place => ({
             ...place,
@@ -2705,7 +3156,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       }).catch(error => {
         console.error('Error buscando gasolineras:', error);
       });
-      
+
       return `⛽ **Buscando gasolineras cerca de ti...**\n\nEstoy buscando las gasolineras más cercanas en tu zona. Te mostraré opciones para que puedas cargar combustible durante tu viaje.\n\n💡 **Tip:** Esencial para viajes largos en auto.`;
     } catch (error) {
       return "Hubo un problema buscando gasolineras. Intenta de nuevo en un momento.";
@@ -2725,15 +3176,15 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       `Puedo ayudarte a encontrar los mejores lugares cerca de ti. ¿Qué tipo de lugar te interesa?`,
       `¿Hay algo específico que necesites durante tu viaje? Puedo buscar restaurantes, hoteles, atracciones o gasolineras.`
     ];
-    
+
     return responses[Math.floor(Math.random() * responses.length)];
   };
 
   // Función para manejar consultas del mejor restaurante (solo 1 resultado)
   const handleBestRestaurantQuery = async (useDestination: boolean = false) => {
     // Determinar qué ubicación usar: destino del viaje o ubicación actual
-    let searchLocation: {lat: number, lng: number} | null = null;
-    
+    let searchLocation: { lat: number, lng: number } | null = null;
+
     if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
       searchLocation = {
         lat: trip.destinationLatitude,
@@ -2744,7 +3195,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
     } else {
       return "No puedo obtener tu ubicación para recomendarte el mejor restaurante. Activa la ubicación o especifica el destino del viaje.";
     }
-    
+
     try {
       findNearbyPlaces('restaurant', {
         maxResults: 1,
@@ -2757,7 +3208,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         if (places.length > 0) {
           setRecommendedPlaces(places);
           addPinsToMap(places);
-          
+
           const newTips = places.map(place => ({
             ...place,
             tipType: 'restaurant',
@@ -2778,7 +3229,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       }).catch(error => {
         console.error('Error buscando el mejor restaurante:', error);
       });
-      
+
       return `🍽️ **Buscando el MEJOR restaurante para ti...**\n\nEstoy buscando el restaurante con mayor calificación (4.5+ estrellas) en tu zona. Solo te mostraré la mejor opción disponible.\n\n💡 **Tip:** El lugar con la mejor reputación según Google Maps.`;
     } catch (error) {
       return "Hubo un problema buscando el mejor restaurante. Intenta de nuevo en un momento.";
@@ -2788,8 +3239,8 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
   // Función para manejar consultas del mejor alojamiento (solo 1 resultado)
   const handleBestAccommodationQuery = async (useDestination: boolean = false) => {
     // Determinar qué ubicación usar: destino del viaje o ubicación actual
-    let searchLocation: {lat: number, lng: number} | null = null;
-    
+    let searchLocation: { lat: number, lng: number } | null = null;
+
     if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
       searchLocation = {
         lat: trip.destinationLatitude,
@@ -2800,7 +3251,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
     } else {
       return "No puedo obtener tu ubicación para recomendarte el mejor alojamiento. Activa la ubicación o especifica el destino del viaje.";
     }
-    
+
     try {
       findNearbyPlaces('lodging', {
         maxResults: 1,
@@ -2813,7 +3264,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         if (places.length > 0) {
           setRecommendedPlaces(places);
           addPinsToMap(places);
-          
+
           const newTips = places.map(place => ({
             ...place,
             tipType: 'lodging',
@@ -2834,7 +3285,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       }).catch(error => {
         console.error('Error buscando el mejor alojamiento:', error);
       });
-      
+
       return `🏨 **Buscando el MEJOR departamento para ti...**\n\nEstoy buscando el departamento o hotel con mayor calificación (4.5+ estrellas) en tu zona. Solo te mostraré la mejor opción disponible.\n\n💡 **Tip:** El lugar con la mejor reputación según Google Maps.`;
     } catch (error) {
       return "Hubo un problema buscando el mejor alojamiento. Intenta de nuevo en un momento.";
@@ -2844,8 +3295,8 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
   // Función para manejar consultas de las mejores atracciones (5 resultados)
   const handleBestAttractionsQuery = async (useDestination: boolean = false) => {
     // Determinar qué ubicación usar: destino del viaje o ubicación actual
-    let searchLocation: {lat: number, lng: number} | null = null;
-    
+    let searchLocation: { lat: number, lng: number } | null = null;
+
     if (useDestination && trip?.destinationLatitude && trip?.destinationLongitude) {
       searchLocation = {
         lat: trip.destinationLatitude,
@@ -2856,7 +3307,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
     } else {
       return "No puedo obtener tu ubicación para recomendarte las mejores atracciones. Activa la ubicación o especifica el destino del viaje.";
     }
-    
+
     try {
       findNearbyPlaces('tourist_attraction', {
         maxResults: 5,
@@ -2869,7 +3320,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         if (places.length > 0) {
           setRecommendedPlaces(places);
           addPinsToMap(places);
-          
+
           const newTips = places.map(place => ({
             ...place,
             tipType: 'tourist_attraction',
@@ -2890,7 +3341,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       }).catch(error => {
         console.error('Error buscando las mejores atracciones:', error);
       });
-      
+
       return `🎯 **Buscando las MEJORES atracciones para ti...**\n\nEstoy buscando las 5 atracciones turísticas con mayor calificación (4.0+ estrellas) en tu zona. Te mostraré los lugares más populares y mejor valorados.\n\n💡 **Tip:** Los lugares más populares y mejor valorados por los visitantes.`;
     } catch (error) {
       return "Hubo un problema buscando las mejores atracciones. Intenta de nuevo en un momento.";
@@ -2899,7 +3350,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
 
   // Función para buscar lugares cercanos usando Google Places API real
   const findNearbyPlaces = async (
-    placeType: string, 
+    placeType: string,
     options: {
       maxResults?: number;
       maxRadius?: number;
@@ -2908,12 +3359,12 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       includePrice?: boolean;
       excludePlaceIds?: string[]; // IDs de lugares a excluir
       excludeNameLocations?: string[]; // Claves nombre+ubicación a excluir
-      location?: {lat: number, lng: number}; // Ubicación opcional (destino o ubicación actual)
+      location?: { lat: number, lng: number }; // Ubicación opcional (destino o ubicación actual)
     } = {}
   ): Promise<any[]> => {
     // Usar la ubicación proporcionada, o la ubicación actual por defecto
     const searchLocation = options.location || currentLocation;
-    
+
     if (!map || !searchLocation) {
       console.error('❌ Mapa o ubicación no disponible');
       return [];
@@ -2937,49 +3388,49 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         minRating,
         includePrice
       });
-      
+
       const placesService = new window.google.maps.places.PlacesService(map);
-      
+
       // Si hay lugares a excluir, buscar más resultados para tener opciones
       const searchLimit = options.excludePlaceIds && options.excludePlaceIds.length > 0
         ? Math.max(maxResults * 2, 20) // Buscar el doble o mínimo 20 si hay exclusiones
         : maxResults;
-      
+
       // Intentar búsqueda con radio progresivo si no encuentra resultados
       const searchRadii = [5, 10, 15, 20]; // km
       let allResults: any[] = [];
-      
+
       for (const radius of searchRadii) {
         if (allResults.length >= searchLimit) break;
-        
+
         console.log(`🔍 Buscando en radio de ${radius}km...`);
-        
+
         const request: any = {
           location: new window.google.maps.LatLng(searchLocation.lat, searchLocation.lng),
           type: placeType,
           rankBy: window.google.maps.places.RankBy.DISTANCE
         };
-        
+
         // Buscar resultados con paginación para obtener más opciones
         const results = await new Promise<any[]>((resolve) => {
           const allPageResults: any[] = [];
           let paginationObj: any = null;
-          
+
           const performSearch = (nextPage?: any) => {
             const searchRequest = nextPage ? { ...request, pagination: nextPage } : request;
-            
+
             placesService.nearbySearch(searchRequest, (pageResults: any[], status: any, pagination?: any) => {
               if (status === window.google.maps.places.PlacesServiceStatus.OK && pageResults) {
                 allPageResults.push(...pageResults);
                 console.log(`📄 Página: ${allPageResults.length} resultados acumulados de ${pageResults.length} en esta página`);
-                
+
                 // Si hay más páginas y aún necesitamos resultados, continuar
                 if (pagination && pagination.hasNextPage && allPageResults.length < searchLimit) {
                   paginationObj = pagination;
                   setTimeout(() => {
                     pagination.nextPage();
                   }, 100);
-            } else {
+                } else {
                   resolve(allPageResults);
                 }
               } else if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
@@ -2991,10 +3442,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
               }
             });
           };
-          
+
           performSearch();
         });
-        
+
         if (results.length > 0) {
           console.log(`✅ Encontrados ${results.length} lugares en ${radius}km`);
           allResults = [...allResults, ...results];
@@ -3003,27 +3454,27 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
           }
         }
       }
-      
+
       if (allResults.length === 0) {
         console.log('❌ No se encontraron lugares en ningún radio');
         return [];
       }
-      
+
       console.log(`🎯 Procesando ${allResults.length} lugares encontrados...`);
-      
+
       const processedPlaces = allResults.map((place: any) => {
         const placeLocation = {
           lat: place.geometry.location.lat(),
           lng: place.geometry.location.lng()
         };
-        
+
         const distance = calculateDistance(
           searchLocation.lat,
           searchLocation.lng,
           placeLocation.lat,
           placeLocation.lng
         );
-        
+
         const processedPlace = {
           id: place.place_id,
           place_id: place.place_id, // Mantener place_id explícitamente
@@ -3038,26 +3489,26 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
           distanceText: distance < 1 ? `${(distance * 1000).toFixed(0)}m` : `${distance.toFixed(1)}km`,
           type: placeType,
           priceLevel: place.price_level || null,
-          priceText: place.price_level ? 
+          priceText: place.price_level ?
             ['Gratis', '$', '$$', '$$$', '$$$$'][place.price_level] : 'Precio no disponible'
         };
-        
+
         return processedPlace;
       });
-      
+
       // Filtrar por rating mínimo si se especifica
       let filteredPlaces = processedPlaces;
       if (minRating > 0) {
         filteredPlaces = processedPlaces.filter(place => place.rating >= minRating);
       }
-      
+
       // Excluir lugares que ya están en tips (por place_id y/o nombre+ubicación)
       const beforeExclude = filteredPlaces.length;
-      if ((options.excludePlaceIds && options.excludePlaceIds.length > 0) || 
-          (options.excludeNameLocations && options.excludeNameLocations.length > 0)) {
+      if ((options.excludePlaceIds && options.excludePlaceIds.length > 0) ||
+        (options.excludeNameLocations && options.excludeNameLocations.length > 0)) {
         const excludePlaceIdSet = options.excludePlaceIds ? new Set(options.excludePlaceIds.map(id => String(id).trim())) : new Set<string>();
         const excludeNameLocationSet = options.excludeNameLocations ? new Set(options.excludeNameLocations) : new Set<string>();
-        
+
         filteredPlaces = filteredPlaces.filter(place => {
           // Primero verificar por place_id
           const placeId = String(place.place_id || place.id || '').trim();
@@ -3065,7 +3516,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
             console.log(`🚫 Excluyendo lugar ya existente por place_id: ${place.name} (place_id: ${placeId})`);
             return false;
           }
-          
+
           // Si no hay place_id o no coincide, verificar por nombre+ubicación
           const lat = place.location?.lat;
           const lng = place.location?.lng;
@@ -3076,36 +3527,36 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
               return false;
             }
           }
-          
+
           return true;
         });
         console.log(`🚫 Excluidos ${beforeExclude - filteredPlaces.length} lugares ya existentes en tips (de ${beforeExclude} totales)`);
-        
+
         // Si después de excluir no tenemos suficientes resultados, buscar más
         if (filteredPlaces.length < maxResults && allResults.length > 0) {
           console.log(`⚠️ Solo quedan ${filteredPlaces.length} lugares después de excluir, necesitamos más resultados`);
           // Ya estamos buscando más resultados con searchLimit, así que esto está cubierto
         }
       }
-      
+
       // Ordenar según criterio especificado
       if (sortBy === 'rating') {
         filteredPlaces.sort((a, b) => b.rating - a.rating);
       } else {
         filteredPlaces.sort((a, b) => a.distance - b.distance);
       }
-      
+
       // Limitar resultados (si se excluyeron lugares, mantener el límite original)
-      const limit = options.excludePlaceIds && options.excludePlaceIds.length > 0 
-        ? Math.min(maxResults, filteredPlaces.length) 
+      const limit = options.excludePlaceIds && options.excludePlaceIds.length > 0
+        ? Math.min(maxResults, filteredPlaces.length)
         : maxResults;
       const finalResults = filteredPlaces.slice(0, limit);
-      
-      console.log(`🎯 ${finalResults.length} lugares finales seleccionados (de ${filteredPlaces.length} disponibles):`, 
+
+      console.log(`🎯 ${finalResults.length} lugares finales seleccionados (de ${filteredPlaces.length} disponibles):`,
         finalResults.map(p => `${p.name} (${p.distanceText}, ⭐${p.rating})`));
-      
+
       return finalResults;
-      
+
     } catch (error) {
       console.error('❌ Error en findNearbyPlaces:', error);
       return [];
@@ -3115,14 +3566,14 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
   // Función para agregar pins al mapa
   const addPinsToMap = (places: any[]) => {
     if (!map) return;
-    
+
     // Limpiar pins anteriores
     mapPins.forEach(pin => pin.setMap(null));
     const newPins: any[] = [];
-    
+
     places.forEach((place, index) => {
       const icon = getPlaceIcon(place.type);
-      
+
       const marker = new window.google.maps.Marker({
         position: place.location,
         map: map,
@@ -3134,7 +3585,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         },
         animation: window.google.maps.Animation.DROP
       });
-      
+
       // Agregar info window
       const infoWindow = new window.google.maps.InfoWindow({
         content: `
@@ -3145,15 +3596,15 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
           </div>
         `
       });
-      
+
       marker.addListener('click', () => {
         infoWindow.open(map, marker);
         setSelectedPlace(place);
       });
-      
+
       newPins.push(marker);
     });
-    
+
     setMapPins(newPins);
   };
 
@@ -3177,18 +3628,18 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
   const addTipPinsToMap = (tipsToAdd: any[]) => {
     console.log('🗺️ addTipPinsToMap llamada con:', tipsToAdd);
     console.log('🗺️ Mapa disponible:', !!map);
-    
+
     if (!map) {
       console.error('❌ Mapa no disponible para agregar pins de tips');
       return;
     }
-    
+
     // Verificar qué tips ya tienen pins para evitar duplicados
     setTipPins(prevPins => {
       const existingPinTitles = new Set(
         prevPins.map(pin => pin.title).filter(title => title != null)
       );
-      
+
       // Filtrar tips que ya tienen pins
       const uniqueTipsToAdd = tipsToAdd.filter(tip => {
         const pinTitle = `${tip.tipIcon} ${tip.name}`;
@@ -3198,32 +3649,32 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         }
         return true;
       });
-      
+
       if (uniqueTipsToAdd.length === 0) {
         console.log('⚠️ Todos los tips ya tienen pins en el mapa');
         return prevPins;
       }
-      
+
       // Crear pins solo para los tips únicos
       const newTipPins: any[] = [];
-      
+
       uniqueTipsToAdd.forEach((tip, index) => {
         // Crear el pin en el mapa
-      const marker = new window.google.maps.Marker({
-        position: tip.location,
-        map: map,
-        title: `${tip.tipIcon} ${tip.name}`,
-        icon: {
+        const marker = new window.google.maps.Marker({
+          position: tip.location,
+          map: map,
+          title: `${tip.tipIcon} ${tip.name}`,
+          icon: {
             url: 'https://maps.google.com/mapfiles/ms/icons/info.png',
-          scaledSize: new window.google.maps.Size(32, 32),
-          anchor: new window.google.maps.Point(16, 32)
-        },
-        animation: window.google.maps.Animation.DROP
-      });
-      
+            scaledSize: new window.google.maps.Size(32, 32),
+            anchor: new window.google.maps.Point(16, 32)
+          },
+          animation: window.google.maps.Animation.DROP
+        });
+
         const tipId = tip.id || tip.place_id || '';
-      const infoWindow = new window.google.maps.InfoWindow({
-        content: `
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `
           <div style="padding: 10px; max-width: 250px;">
             <h3 style="margin: 0 0 8px 0; color: #1976d2; font-size: 16px;">
               ${tip.tipIcon} ${tip.name}
@@ -3243,17 +3694,17 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
             </button>
           </div>
         `
+        });
+
+        marker.addListener('click', () => {
+          infoWindow.open(map, marker);
+        });
+
+        newTipPins.push(marker);
+        console.log(`🗺️ Pin ${index + 1} agregado:`, tip.name);
       });
-      
-      marker.addListener('click', () => {
-        infoWindow.open(map, marker);
-      });
-      
-      newTipPins.push(marker);
-      console.log(`🗺️ Pin ${index + 1} agregado:`, tip.name);
-      });
-    
-    console.log('🗺️ Total pins de tips creados:', newTipPins.length);
+
+      console.log('🗺️ Total pins de tips creados:', newTipPins.length);
       return [...prevPins, ...newTipPins];
     });
   };
@@ -3266,9 +3717,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       console.error('❌ Tip no encontrado o ubicación no disponible');
       return;
     }
-    
+
     console.log('📍 Tip encontrado:', tip);
-    
+
     // Guardar destino original si no estamos ya navegando a un tip
     if (!isNavigatingToTip && trip) {
       setOriginalDestination({
@@ -3279,23 +3730,23 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         }
       });
     }
-    
+
     // Configurar navegación temporal al tip
     setIsNavigatingToTip(true);
     setCurrentTipDestination(tip);
-    
+
     // Iniciar navegación al tip
     if (directionsService && directionsRenderer) {
       // Obtener coordenadas del tip (pueden estar en location o directamente)
       const tipLat = tip.location?.lat || tip.latitude;
       const tipLng = tip.location?.lng || tip.longitude;
-      
+
       if (!tipLat || !tipLng) {
         console.error('❌ Tip no tiene coordenadas válidas:', tip);
         toast.error('El tip no tiene coordenadas válidas');
         return;
       }
-      
+
       const request = {
         origin: currentLocation,
         destination: {
@@ -3307,18 +3758,18 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         avoidHighways: false,
         avoidTolls: false
       };
-      
+
       console.log('🗺️ Calculando ruta al tip:', request);
-      
+
       directionsService.route(request, (result: any, status: any) => {
         if (status === window.google.maps.DirectionsStatus.OK) {
           directionsRenderer.setDirections(result);
-          
+
           // Zoom automático al tip
           if (currentLocation) {
             applyZoomToLocation(currentLocation, 'navegación a tip');
           }
-          
+
           toast.success(`🚗 Navegando a ${tip.name}. Usa "Continuar viaje" para volver al destino principal.`);
           console.log('✅ Ruta al tip calculada exitosamente');
         } else {
@@ -3343,9 +3794,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       toast.error('No se puede continuar el viaje principal');
       return;
     }
-    
+
     console.log('🔄 Continuando viaje principal a:', originalDestination);
-    
+
     const request = {
       origin: currentLocation,
       destination: originalDestination.location,
@@ -3354,16 +3805,16 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       avoidHighways: false,
       avoidTolls: false
     };
-    
+
     directionsService.route(request, (result: any, status: any) => {
       if (status === window.google.maps.DirectionsStatus.OK) {
         directionsRenderer.setDirections(result);
-        
+
         // Zoom automático al continuar viaje principal
         if (currentLocation) {
           applyZoomToLocation(currentLocation, 'continuar viaje principal');
         }
-        
+
         setIsNavigatingToTip(false);
         setCurrentTipDestination(null);
         toast.success(`🔄 Continuando viaje principal a ${originalDestination.name}`);
@@ -3389,7 +3840,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
   const filterDuplicateTips = (existingTips: any[], newTips: any[]): any[] => {
     if (newTips.length === 0) return [];
     if (existingTips.length === 0) return newTips;
-    
+
     // Crear un set con los place_ids de los tips existentes (más confiable)
     const existingPlaceIds = new Set(
       existingTips
@@ -3399,14 +3850,14 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         })
         .filter(id => id != null)
     );
-    
+
     // Crear un set con los IDs de base de datos de los tips existentes
     const existingDbIds = new Set(
       existingTips
         .map(tip => tip.id && typeof tip.id === 'number' ? String(tip.id) : null)
         .filter(id => id != null)
     );
-    
+
     // También crear un set con nombres y ubicaciones para comparación adicional
     const existingNameLocation = new Set(
       existingTips
@@ -3420,11 +3871,11 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         })
         .filter(key => key != null)
     );
-    
+
     // Filtrar los nuevos tips para evitar duplicados
     const seenPlaceIds = new Set<string>();
     const seenNames = new Set<string>();
-    
+
     const uniqueNewTips = newTips.filter(tip => {
       // Verificar por ID de base de datos primero (si el tip ya fue guardado)
       if (tip.id && typeof tip.id === 'number') {
@@ -3439,7 +3890,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         }
         seenPlaceIds.add(tipIdStr);
       }
-      
+
       // Verificar por place_id (más confiable para Google Places)
       const tipPlaceId = tip.place_id || tip.placeId;
       if (tipPlaceId) {
@@ -3454,7 +3905,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         }
         seenPlaceIds.add(tipPlaceIdStr);
       }
-      
+
       // Si no hay place_id, verificar por nombre y ubicación
       const lat = tip.location?.lat || tip.latitude;
       const lng = tip.location?.lng || tip.longitude;
@@ -3470,10 +3921,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         }
         seenNames.add(nameLocationKey);
       }
-      
+
       return true;
     });
-    
+
     console.log(`✅ Filtrados ${newTips.length - uniqueNewTips.length} tips duplicados de ${newTips.length} totales`);
     return uniqueNewTips;
   };
@@ -3491,26 +3942,26 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
 
     try {
       console.log(`🗑️ Eliminando todos los tips del viaje ${trip.id} de la base de datos...`);
-      
+
       // Usar el endpoint que elimina todos los tips del viaje de una vez
       const response = await api.deleteAllTipsByTrip(trip.id.toString());
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Todos los tips eliminados de la base de datos:', data);
 
-      // Limpiar del estado local
-      setTips([]);
-      tipPins.forEach(pin => pin.setMap(null));
-      setTipPins([]);
-      setShowTipsList(false);
-      
+        // Limpiar del estado local
+        setTips([]);
+        tipPins.forEach(pin => pin.setMap(null));
+        setTipPins([]);
+        setShowTipsList(false);
+
         toast.success('Se eliminaron todos los tips');
       } else {
         const errorData = await response.json().catch(() => ({ message: 'Error desconocido' }));
         console.error('❌ Error eliminando tips:', errorData);
         toast.error(`Error al eliminar tips: ${errorData.message || 'Error desconocido'}`);
-        
+
         // Limpiar del estado local de todos modos
         setTips([]);
         tipPins.forEach(pin => pin.setMap(null));
@@ -3520,7 +3971,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
     } catch (error) {
       console.error('❌ Error eliminando tips:', error);
       toast.error('Error al eliminar tips. Intenta de nuevo.');
-      
+
       // Limpiar del estado local de todos modos
       setTips([]);
       tipPins.forEach(pin => pin.setMap(null));
@@ -3538,12 +3989,12 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         const tipPlaceId = tip.place_id || tip.placeId;
         return tPlaceId && tipPlaceId && tPlaceId === tipPlaceId;
       });
-      
+
       if (existingTip && existingTip.id && typeof existingTip.id === 'number') {
         console.log('⚠️ Tip ya existe en estado local, no se guardará duplicado:', existingTip.id);
         return existingTip; // Retornar el tip existente con su ID de la base de datos
       }
-      
+
       // Verificar también en la base de datos antes de crear
       const tipsFromDB = await loadTipsFromDatabase();
       const existingTipInDB = tipsFromDB.find((dbTip: any) => {
@@ -3551,7 +4002,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         const tipPlaceId = tip.place_id || tip.placeId;
         return dbPlaceId && tipPlaceId && dbPlaceId === tipPlaceId;
       });
-      
+
       if (existingTipInDB) {
         console.log('⚠️ Tip ya existe en base de datos, no se guardará duplicado:', existingTipInDB.id);
         // Actualizar el estado local con el tip de la BD
@@ -3581,7 +4032,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
 
       console.log('💾 Intentando guardar tip:', tipData);
       const response = await api.createTip(trip?.id?.toString() || '', tipData, user?.email || 'usuario@ejemplo.com');
-      
+
       if (response.ok) {
         const result = await response.json();
         console.log('✅ Tip guardado en base de datos:', result.data);
@@ -3642,7 +4093,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
     if (deleted) {
       console.log('✅ Tip eliminado de la base de datos');
     }
-    
+
     // Eliminar del estado local
     setTips(prev => prev.filter(tip => tip.id !== tipId));
     setTipPins(prev => {
@@ -3686,7 +4137,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
   // Función para obtener icono de dirección basado en la instrucción
   const getDirectionIcon = (instruction: string) => {
     const lowerInstruction = instruction.toLowerCase();
-    
+
     if (lowerInstruction.includes('derecha') || lowerInstruction.includes('right')) {
       return <TurnRight sx={{ fontSize: 20, color: 'primary.main' }} />;
     } else if (lowerInstruction.includes('izquierda') || lowerInstruction.includes('left')) {
@@ -3710,16 +4161,16 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Fecha no disponible';
-    
+
     try {
       const [year, month, day] = dateString.split('-').map(Number);
       const date = new Date(year, month - 1, day);
-      
+
       if (isNaN(date.getTime())) return 'Fecha inválida';
-      
-      return date.toLocaleDateString('es-AR', { 
-        day: '2-digit', 
-        month: 'long', 
+
+      return date.toLocaleDateString('es-AR', {
+        day: '2-digit',
+        month: 'long',
         year: 'numeric'
       });
     } catch (error) {
@@ -3784,29 +4235,29 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
 
   if (!trip) {
     if (hasAttemptedLoad && !loading) {
-    return (
-      <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: '#FAFAFA' }}>
-        <AppBar position="static" elevation={0} sx={{ bgcolor: '#E3F2FD', color: '#424242', borderBottom: '1px solid #BBDEFB' }}>
-          <Toolbar sx={{ px: 3, py: 1.5 }}>
-            <IconButton
-              edge="start"
-              onClick={() => router.back()}
-              sx={{ mr: 2, color: '#666' }}
-            >
-              <ArrowBack />
-            </IconButton>
-            <Typography variant="h6" component="h1" sx={{ fontWeight: 600, color: '#424242' }}>
-              Viaje no encontrado
-            </Typography>
-          </Toolbar>
-        </AppBar>
-        <Container maxWidth="md" sx={{ py: 6, textAlign: 'center' }}>
-          <Alert severity="error" sx={{ borderRadius: 2 }}>
-            No se pudo cargar la información del viaje. Verifica que tengas acceso a este viaje.
-          </Alert>
-        </Container>
-      </Box>
-    );
+      return (
+        <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: '#FAFAFA' }}>
+          <AppBar position="static" elevation={0} sx={{ bgcolor: '#E3F2FD', color: '#424242', borderBottom: '1px solid #BBDEFB' }}>
+            <Toolbar sx={{ px: 3, py: 1.5 }}>
+              <IconButton
+                edge="start"
+                onClick={() => router.back()}
+                sx={{ mr: 2, color: '#666' }}
+              >
+                <ArrowBack />
+              </IconButton>
+              <Typography variant="h6" component="h1" sx={{ fontWeight: 600, color: '#424242' }}>
+                Viaje no encontrado
+              </Typography>
+            </Toolbar>
+          </AppBar>
+          <Container maxWidth="md" sx={{ py: 6, textAlign: 'center' }}>
+            <Alert severity="error" sx={{ borderRadius: 2 }}>
+              No se pudo cargar la información del viaje. Verifica que tengas acceso a este viaje.
+            </Alert>
+          </Container>
+        </Box>
+      );
     }
     return null;
   }
@@ -3837,14 +4288,14 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
           <Chip
             label={getStatusLabel(trip.status)}
             size="small"
-            sx={{ 
+            sx={{
               fontWeight: 500,
               bgcolor: trip.status?.toLowerCase() === 'completed' ? '#C8E6C9' :
-                      trip.status?.toLowerCase() === 'planning' ? '#BBDEFB' :
-                      trip.status?.toLowerCase() === 'active' ? '#FFE0B2' : '#F5F5F5',
+                trip.status?.toLowerCase() === 'planning' ? '#BBDEFB' :
+                  trip.status?.toLowerCase() === 'active' ? '#FFE0B2' : '#F5F5F5',
               color: trip.status?.toLowerCase() === 'completed' ? '#2E7D32' :
-                     trip.status?.toLowerCase() === 'planning' ? '#1565C0' :
-                     trip.status?.toLowerCase() === 'active' ? '#E65100' : '#616161',
+                trip.status?.toLowerCase() === 'planning' ? '#1565C0' :
+                  trip.status?.toLowerCase() === 'active' ? '#E65100' : '#616161',
             }}
           />
         </Toolbar>
@@ -3864,9 +4315,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
             <Card sx={{ mb: 3, boxShadow: 'none', border: '1px solid #E0E0E0', borderRadius: 2 }}>
               <CardContent sx={{ p: 3 }}>
                 <Box display="flex" alignItems="center" gap={2} mb={2}>
-                  <Avatar sx={{ 
-                    bgcolor: '#E3F2FD', 
-                    width: 60, 
+                  <Avatar sx={{
+                    bgcolor: '#E3F2FD',
+                    width: 60,
                     height: 60,
                     color: '#1976D2'
                   }}>
@@ -3882,14 +4333,14 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                     <Chip
                       label={getStatusLabel(trip.status)}
                       size="small"
-                      sx={{ 
+                      sx={{
                         fontWeight: 500,
                         bgcolor: trip.status?.toLowerCase() === 'completed' ? '#C8E6C9' :
-                                trip.status?.toLowerCase() === 'planning' ? '#BBDEFB' :
-                                trip.status?.toLowerCase() === 'active' ? '#FFE0B2' : '#F5F5F5',
+                          trip.status?.toLowerCase() === 'planning' ? '#BBDEFB' :
+                            trip.status?.toLowerCase() === 'active' ? '#FFE0B2' : '#F5F5F5',
                         color: trip.status?.toLowerCase() === 'completed' ? '#2E7D32' :
-                               trip.status?.toLowerCase() === 'planning' ? '#1565C0' :
-                               trip.status?.toLowerCase() === 'active' ? '#E65100' : '#616161',
+                          trip.status?.toLowerCase() === 'planning' ? '#1565C0' :
+                            trip.status?.toLowerCase() === 'active' ? '#E65100' : '#616161',
                       }}
                     />
                   </Box>
@@ -3930,9 +4381,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                     <Box display="flex" alignItems="center" gap={1}>
                       {getVehicleIcon(trip.vehicle)}
                       <Typography variant="body2" sx={{ fontWeight: 500, color: '#424242' }}>
-                        {trip.vehicle === 'auto' ? 'En auto' : 
-                         trip.vehicle === 'avion' ? 'En avión' : 
-                         trip.vehicle === 'caminando' ? 'Caminando' : 'En auto'}
+                        {trip.vehicle === 'auto' ? 'En auto' :
+                          trip.vehicle === 'avion' ? 'En avión' :
+                            trip.vehicle === 'caminando' ? 'Caminando' : 'En auto'}
                       </Typography>
                     </Box>
 
@@ -3944,7 +4395,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                       </Box>
                     )}
                   </Box>
-                  
+
                   {/* Origen y Destino con botones de edición */}
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
                     {trip.origin && (
@@ -4032,10 +4483,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                       <Typography variant="body1" sx={{ fontWeight: 700, fontFamily: 'monospace', letterSpacing: 1, color: '#424242' }}>
                         {trip.joinCode}
                       </Typography>
-                      <IconButton 
-                        size="small" 
+                      <IconButton
+                        size="small"
                         onClick={() => handleCopyJoinCode(trip.joinCode!)}
-                        sx={{ 
+                        sx={{
                           bgcolor: copiedCode === trip.joinCode ? '#4CAF50' : 'transparent',
                           color: copiedCode === trip.joinCode ? 'white' : '#666',
                           '&:hover': {
@@ -4100,9 +4551,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                   {generalWallet.currencySymbol || '$'} {generalWallet.amount?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                                 </Typography>
                                 <Typography variant="caption" sx={{ color: '#64B5F6' }}>
-                                  {generalWallet.currency === 'PESOS' ? 'Pesos Argentinos' : 
-                                   generalWallet.currency === 'DOLARES' ? 'Dólares Estadounidenses' : 
-                                   'Euros'}
+                                  {generalWallet.currency === 'PESOS' ? 'Pesos Argentinos' :
+                                    generalWallet.currency === 'DOLARES' ? 'Dólares Estadounidenses' :
+                                      'Euros'}
                                 </Typography>
                               </Box>
                               {isUserAdmin && (
@@ -4141,9 +4592,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                   {individualWallet.currencySymbol || '$'} {individualWallet.amount?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                                 </Typography>
                                 <Typography variant="caption" sx={{ color: '#4CAF50' }}>
-                                  {individualWallet.currency === 'PESOS' ? 'Pesos Argentinos' : 
-                                   individualWallet.currency === 'DOLARES' ? 'Dólares Estadounidenses' : 
-                                   'Euros'}
+                                  {individualWallet.currency === 'PESOS' ? 'Pesos Argentinos' :
+                                    individualWallet.currency === 'DOLARES' ? 'Dólares Estadounidenses' :
+                                      'Euros'}
                                 </Typography>
                               </Box>
                               <IconButton
@@ -4231,8 +4682,8 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
 
                   {/* Lista de Compras */}
                   <Box sx={{ mt: 3 }}>
-                    <Accordion 
-                      expanded={purchasesExpanded} 
+                    <Accordion
+                      expanded={purchasesExpanded}
                       onChange={() => setPurchasesExpanded(!purchasesExpanded)}
                       sx={{
                         boxShadow: 'none',
@@ -4428,57 +4879,57 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                     <List>
                       {participants.map((p) => (
                         <ListItem key={p.id} sx={{ py: 1 }}>
-                        <ListItemAvatar>
-                        <Avatar src={p.profilePicture || undefined} sx={{ width: 40, height: 40 }}>
-                          {p.name?.[0] || 'U'}
-                        </Avatar>
-                        </ListItemAvatar>
-                        <ListItemText
-                          primary={p.name}
-                          secondary={p.email}
-                          primaryTypographyProps={{ sx: { fontWeight: 500, color: '#424242' } }}
-                          secondaryTypographyProps={{ sx: { color: '#666', fontSize: '0.875rem' } }}
-                        />
-                        {isUserAdmin && (
-                        <>
-                        {/* Botón eliminar participante */}
-                        <IconButton
-                          size="small"
-                          onClick={() => handleRemoveParticipant(p.id)}
-                          sx={{ color: '#F44336' }}
-                        >
-                      <Delete sx={{ fontSize: 18 }} />
-                        </IconButton>
-                      {/* Botón agregar como admin */}
-                      {!trip?.adminIds?.includes(p.id) && (
-                      <IconButton
-                        size="small"
-                        onClick={() => handleAddAdmin(p.id)}
-                        sx={{ color: '#1976D2' }}
-                      >
-                        <PersonAdd sx={{ fontSize: 18 }} />
-                        </IconButton>
-                        )}
-                        {/* Botón quitar admin */}
-                        {trip?.adminIds?.includes(p.id) && (
-                          <IconButton
-                          size="small"
-                          onClick={() => handleRemoveAdmin(p.id)}
-                          sx={{ color: '#FF9800' }}
-                          >
-                            <Clear sx={{ fontSize: 18 }} />
-                          </IconButton>
-                        )}
-                      </>
-                      )}
-                    </ListItem>
-                  ))}
-                </List>
+                          <ListItemAvatar>
+                            <Avatar src={p.profilePicture || undefined} sx={{ width: 40, height: 40 }}>
+                              {p.name?.[0] || 'U'}
+                            </Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={p.name}
+                            secondary={p.email}
+                            primaryTypographyProps={{ sx: { fontWeight: 500, color: '#424242' } }}
+                            secondaryTypographyProps={{ sx: { color: '#666', fontSize: '0.875rem' } }}
+                          />
+                          {isUserAdmin && (
+                            <>
+                              {/* Botón eliminar participante */}
+                              <IconButton
+                                size="small"
+                                onClick={() => handleRemoveParticipant(p.id)}
+                                sx={{ color: '#F44336' }}
+                              >
+                                <Delete sx={{ fontSize: 18 }} />
+                              </IconButton>
+                              {/* Botón agregar como admin */}
+                              {!trip?.adminIds?.includes(p.id) && (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleAddAdmin(p.id)}
+                                  sx={{ color: '#1976D2' }}
+                                >
+                                  <PersonAdd sx={{ fontSize: 18 }} />
+                                </IconButton>
+                              )}
+                              {/* Botón quitar admin */}
+                              {trip?.adminIds?.includes(p.id) && (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleRemoveAdmin(p.id)}
+                                  sx={{ color: '#FF9800' }}
+                                >
+                                  <Clear sx={{ fontSize: 18 }} />
+                                </IconButton>
+                              )}
+                            </>
+                          )}
+                        </ListItem>
+                      ))}
+                    </List>
 
-                )}
-              </Box>
-            </Paper>
-          </Box>
+                  )}
+                </Box>
+              </Paper>
+            </Box>
           </Box>
 
           {/* Mapa */}
@@ -4503,20 +4954,20 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                       </Box>
                     ) : (
                       routeDistance && (
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976D2' }}>
-                          {routeDistance}
-                        </Typography>
-                        {routeDuration && (
-                          <Typography variant="body2" sx={{ color: '#666' }}>
-                            • {routeDuration}
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976D2' }}>
+                            {routeDistance}
                           </Typography>
-                        )}
-                      </Box>
+                          {routeDuration && (
+                            <Typography variant="body2" sx={{ color: '#666' }}>
+                              • {routeDuration}
+                            </Typography>
+                          )}
+                        </Box>
                       )
                     )}
                   </Box>
-                  
+
                   {isNavigating ? (
                     <Box>
                       <Typography variant="body2" sx={{ mb: 1, color: '#666' }}>
@@ -4525,57 +4976,90 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                     </Box>
                   ) : (
                     <Box>
-                  <Typography variant="body2" sx={{ color: '#666' }}>
-                    {trip.origin ? `${trip.origin} → ${trip.destination}` : trip.destination}
-                  </Typography>
-                  {trip.vehicle && (
-                    <Box display="flex" alignItems="center" gap={1} mt={1}>
-                      {getVehicleIcon(trip.vehicle)}
                       <Typography variant="body2" sx={{ color: '#666' }}>
-                        {trip.vehicle === 'auto' ? 'En auto' : 
-                         trip.vehicle === 'avion' ? 'En avión' : 
-                         trip.vehicle === 'caminando' ? 'Caminando' : 'En auto'}
+                        {trip.origin ? `${trip.origin} → ${trip.destination}` : trip.destination}
                       </Typography>
-                    </Box>
-                  )}
-                  {distanceFromCurrent && (
-                    <Box display="flex" alignItems="center" gap={1} mt={1}>
-                      <MyLocation sx={{ fontSize: 16, color: '#1976D2' }} />
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976D2' }}>
-                        Te quedan {distanceFromCurrent} para llegar
-                      </Typography>
+                      {trip.vehicle && (
+                        <Box display="flex" alignItems="center" gap={1} mt={1}>
+                          {getVehicleIcon(trip.vehicle)}
+                          <Typography variant="body2" sx={{ color: '#666' }}>
+                            {trip.vehicle === 'auto' ? 'En auto' :
+                              trip.vehicle === 'avion' ? 'En avión' :
+                                trip.vehicle === 'caminando' ? 'Caminando' : 'En auto'}
+                          </Typography>
+                        </Box>
+                      )}
+                      {distanceFromCurrent && (
+                        <Box display="flex" alignItems="center" gap={1} mt={1}>
+                          <MyLocation sx={{ fontSize: 16, color: '#1976D2' }} />
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976D2' }}>
+                            Te quedan {distanceFromCurrent} para llegar
+                          </Typography>
                         </Box>
                       )}
                     </Box>
                   )}
-                  
+
                   {/* Botones de navegación para viajes en auto */}
-                  {trip.vehicle === 'auto' && currentLocation && (
+                  {(trip.vehicle === 'auto' || trip.vehicle === 'avion' || trip.vehicle === 'caminando') && currentLocation && (
                     <Box display="flex" gap={1} mt={2}>
                       {!isNavigating ? (
-                        <Button
-                          variant="contained"
-                          startIcon={<PlayArrow />}
-                          onClick={startNavigation}
-                          size="small"
-                          sx={{ 
-                            bgcolor: '#4CAF50',
-                            '&:hover': { bgcolor: '#388E3C' },
-                            textTransform: 'none',
-                            borderRadius: 2,
-                            px: 2,
-                          }}
-                        >
-                          Iniciar Viaje
-                        </Button>
+                        <>
+                          {/* Botón para ir al origen */}
+                          {trip.originLatitude && trip.originLongitude && (
+                            <Button
+                              variant="outlined"
+                              startIcon={<Place />}
+                              onClick={() => {
+                                startNavigation('to-origin');
+                              }}
+                              size="small"
+                              sx={{
+                                borderColor: '#4CAF50',
+                                color: '#4CAF50',
+                                '&:hover': {
+                                  borderColor: '#388E3C',
+                                  bgcolor: 'rgba(76, 175, 80, 0.1)'
+                                },
+                                textTransform: 'none',
+                                borderRadius: 2,
+                                px: 2,
+                              }}
+                            >
+                              Ir al Origen
+                            </Button>
+                          )}
+
+                          {/* Botón para iniciar viaje (al destino) */}
+                          <Button
+                            variant="contained"
+                            startIcon={<PlayArrow />}
+                            onClick={() => {
+                              startNavigation('to-destination');
+                            }}
+                            size="small"
+                            sx={{
+                              bgcolor: '#1976D2',
+                              '&:hover': { bgcolor: '#1565C0' },
+                              textTransform: 'none',
+                              borderRadius: 2,
+                              px: 2,
+                            }}
+                          >
+                            Iniciar Viaje
+                          </Button>
+                        </>
                       ) : (
                         <>
                           <Button
                             variant="contained"
                             startIcon={<Stop />}
-                            onClick={stopNavigation}
+                            onClick={() => {
+                              stopNavigation();
+                              setNavigationMode(null);
+                            }}
                             size="small"
-                            sx={{ 
+                            sx={{
                               bgcolor: '#F44336',
                               '&:hover': { bgcolor: '#D32F2F' },
                               textTransform: 'none',
@@ -4585,13 +5069,38 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           >
                             Detener
                           </Button>
+
+                          {/* Si está navegando al origen, mostrar botón para continuar al destino */}
+                          {navigationMode === 'to-origin' && (
+                            <Button
+                              variant="contained"
+                              startIcon={<Navigation />}
+                              onClick={() => {
+                                setNavigationMode('to-destination');
+                                if (currentLocation) {
+                                  startNavigationWithLocation(currentLocation, 'to-destination');
+                                }
+                              }}
+                              size="small"
+                              sx={{
+                                bgcolor: '#4CAF50',
+                                '&:hover': { bgcolor: '#388E3C' },
+                                textTransform: 'none',
+                                borderRadius: 2,
+                                px: 2,
+                              }}
+                            >
+                              Continuar al Destino
+                            </Button>
+                          )}
+
                           {isNavigatingToTip && (
                             <Button
                               variant="contained"
                               startIcon={<Navigation />}
                               onClick={continueMainTrip}
                               size="small"
-                              sx={{ 
+                              sx={{
                                 bgcolor: '#4CAF50',
                                 '&:hover': { bgcolor: '#388E3C' },
                                 textTransform: 'none',
@@ -4617,11 +5126,11 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                     transition: 'height 0.3s ease-in-out'
                   }}
                 />
-                
+
                 {/* Lista de Lugares Recomendados */}
                 {recommendedPlaces.length > 0 && (
                   <Box sx={{ width: '100%', mt: 3 }}>
-                    <Paper sx={{ 
+                    <Paper sx={{
                       bgcolor: '#E8F5E9',
                       border: '1px solid #C8E6C9',
                       borderRadius: 2,
@@ -4629,9 +5138,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                       p: 2
                     }}>
                       <Box display="flex" alignItems="center" gap={1.5} mb={2}>
-                        <Box sx={{ 
-                          bgcolor: 'rgba(46, 125, 50, 0.1)', 
-                          borderRadius: '50%', 
+                        <Box sx={{
+                          bgcolor: 'rgba(46, 125, 50, 0.1)',
+                          borderRadius: '50%',
                           p: 0.75,
                           display: 'flex',
                           alignItems: 'center',
@@ -4648,10 +5157,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           </Typography>
                         </Box>
                       </Box>
-                      
+
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                         {recommendedPlaces.map((place, index) => (
-                          <Paper key={place.id} sx={{ 
+                          <Paper key={place.id} sx={{
                             width: '100%',
                             bgcolor: 'white',
                             border: selectedPlace?.id === place.id ? '2px solid #4CAF50' : '1px solid #E0E0E0',
@@ -4664,13 +5173,13 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                               boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                             }
                           }}
-                          onClick={() => setSelectedPlace(place)}
+                            onClick={() => setSelectedPlace(place)}
                           >
                             <Box sx={{ p: 1.5 }}>
                               <Box display="flex" alignItems="center" gap={1.5} mb={1}>
-                                <Box sx={{ 
-                                  bgcolor: '#E8F5E9', 
-                                  borderRadius: 1, 
+                                <Box sx={{
+                                  bgcolor: '#E8F5E9',
+                                  borderRadius: 1,
                                   p: 0.75,
                                   display: 'flex',
                                   alignItems: 'center',
@@ -4690,7 +5199,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                   </Typography>
                                 </Box>
                               </Box>
-                              
+
                               <Box display="flex" alignItems="center" gap={1.5} mt={1}>
                                 <Box display="flex" alignItems="center" gap={0.5}>
                                   <Typography sx={{ fontSize: 14 }}>⭐</Typography>
@@ -4700,10 +5209,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                 </Box>
                                 <Chip
                                   label={place.type === 'restaurant' ? 'Restaurante' :
-                                         place.type === 'lodging' ? 'Alojamiento' :
-                                         place.type === 'tourist_attraction' ? 'Atracción' : 'Gasolinera'}
+                                    place.type === 'lodging' ? 'Alojamiento' :
+                                      place.type === 'tourist_attraction' ? 'Atracción' : 'Gasolinera'}
                                   size="small"
-                                  sx={{ 
+                                  sx={{
                                     bgcolor: '#E8F5E9',
                                     color: '#2E7D32',
                                     fontWeight: 600,
@@ -4712,12 +5221,12 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                   }}
                                 />
                               </Box>
-                              
+
                               {selectedPlace?.id === place.id && (
-                                <Box sx={{ 
-                                  mt: 1.5, 
-                                  p: 1, 
-                                  bgcolor: '#E8F5E9', 
+                                <Box sx={{
+                                  mt: 1.5,
+                                  p: 1,
+                                  bgcolor: '#E8F5E9',
                                   borderRadius: 1,
                                   border: '1px solid #C8E6C9'
                                 }}>
@@ -4730,7 +5239,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           </Paper>
                         ))}
                       </Box>
-                      
+
                       <Box sx={{ mt: 2, textAlign: 'center' }}>
                         <Button
                           variant="outlined"
@@ -4764,8 +5273,8 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                   <Box sx={{ mt: 3 }}>
                     <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
                       <Box display="flex" alignItems="center" gap={2}>
-                        <Typography variant="h5" sx={{ 
-                          fontWeight: 700, 
+                        <Typography variant="h5" sx={{
+                          fontWeight: 700,
                           color: 'primary.main',
                           background: 'linear-gradient(45deg, #1976d2, #42a5f5)',
                           backgroundClip: 'text',
@@ -4787,7 +5296,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           size="small"
                           onClick={() => setShowTipsList(!showTipsList)}
                           startIcon={showTipsList ? <ExpandLess /> : <ExpandMore />}
-                          sx={{ 
+                          sx={{
                             borderRadius: 2,
                             textTransform: 'none',
                             fontWeight: 600
@@ -4801,7 +5310,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           color="error"
                           onClick={clearTips}
                           startIcon={<Clear />}
-                          sx={{ 
+                          sx={{
                             borderRadius: 2,
                             textTransform: 'none',
                             fontWeight: 600
@@ -4811,9 +5320,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                         </Button>
                       </Box>
                     </Box>
-                    
+
                     {showTipsList && (
-                      <Box sx={{ 
+                      <Box sx={{
                         position: 'relative',
                         '&::before': {
                           content: '""',
@@ -4827,7 +5336,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           zIndex: 1
                         }
                       }}>
-                        <Box sx={{ 
+                        <Box sx={{
                           display: 'flex',
                           gap: 2,
                           pb: 2,
@@ -4849,10 +5358,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           }
                         }}>
                           {tips.map((tip, index) => (
-                            <Card 
+                            <Card
                               key={tip.id}
                               id={`tip-card-${tip.id}`}
-                              sx={{ 
+                              sx={{
                                 minWidth: 280,
                                 maxWidth: 280,
                                 border: '2px solid transparent',
@@ -4896,9 +5405,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                               <CardContent sx={{ p: 3, position: 'relative' }}>
                                 {/* Header con icono y nombre */}
                                 <Box display="flex" alignItems="center" gap={2} mb={2}>
-                                  <Box 
+                                  <Box
                                     className="tip-icon"
-                                    sx={{ 
+                                    sx={{
                                       fontSize: 32,
                                       transition: 'all 0.3s ease',
                                       display: 'flex',
@@ -4915,10 +5424,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                     {tip.tipIcon}
                                   </Box>
                                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                                    <Typography 
+                                    <Typography
                                       className="tip-name"
-                                      variant="h6" 
-                                      sx={{ 
+                                      variant="h6"
+                                      sx={{
                                         fontWeight: 700,
                                         color: '#333',
                                         transition: 'color 0.3s ease',
@@ -4934,7 +5443,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                       size="small"
                                       color="primary"
                                       variant="filled"
-                                      sx={{ 
+                                      sx={{
                                         fontWeight: 600,
                                         fontSize: '0.75rem',
                                         height: 20
@@ -4942,12 +5451,12 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                     />
                                   </Box>
                                 </Box>
-                                
+
                                 {/* Información del lugar */}
-                                <Typography 
-                                  variant="body2" 
-                                  color="text.secondary" 
-                                  sx={{ 
+                                <Typography
+                                  variant="body2"
+                                  color="text.secondary"
+                                  sx={{
                                     mb: 2,
                                     display: 'flex',
                                     alignItems: 'center',
@@ -4959,7 +5468,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                 >
                                   📍 {tip.address || 'Dirección no disponible'}
                                 </Typography>
-                                
+
                                 {/* Rating, precio y tipos */}
                                 <Box display="flex" alignItems="center" gap={2} mb={3}>
                                   <Box display="flex" alignItems="center" gap={0.5}>
@@ -4976,17 +5485,17 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                       size="small"
                                       color="success"
                                       variant="outlined"
-                                      sx={{ 
+                                      sx={{
                                         fontWeight: 600,
                                         fontSize: '0.7rem',
                                         height: 18
                                       }}
                                     />
                                   )}
-                                  <Typography 
-                                    variant="body2" 
+                                  <Typography
+                                    variant="body2"
                                     color="text.secondary"
-                                    sx={{ 
+                                    sx={{
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
                                       whiteSpace: 'nowrap',
@@ -4996,7 +5505,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                     {tip.types ? tip.types.slice(0, 2).join(', ') : 'Sin categoría'}
                                   </Typography>
                                 </Box>
-                                
+
                                 {/* Botones de acción */}
                                 <Box display="flex" gap={1}>
                                   <Button
@@ -5007,7 +5516,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                       e.stopPropagation();
                                       startTripToTip(tip.id);
                                     }}
-                                    sx={{ 
+                                    sx={{
                                       flex: 1,
                                       borderRadius: 2,
                                       textTransform: 'none',
@@ -5030,7 +5539,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                       e.stopPropagation();
                                       removeTip(tip.id);
                                     }}
-                                    sx={{ 
+                                    sx={{
                                       borderRadius: 2,
                                       textTransform: 'none',
                                       fontWeight: 600,
@@ -5041,7 +5550,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                                     <Delete fontSize="small" />
                                   </Button>
                                 </Box>
-                                
+
                                 {/* Efecto de brillo en hover */}
                                 <Box
                                   sx={{
@@ -5065,10 +5574,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                   </Box>
                 )}
                 {!isGoogleMapsLoaded && (
-                  <Box sx={{ 
-                    height: 400, 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                  <Box sx={{
+                    height: 400,
+                    display: 'flex',
+                    alignItems: 'center',
                     justifyContent: 'center',
                     flexDirection: 'column',
                     gap: 2
@@ -5086,10 +5595,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
             {isNavigating && navigationSteps.length > 0 && (
               <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap' }}>
                 {/* Navegación */}
-                <Paper sx={{ 
+                <Paper sx={{
                   flex: '1 1 400px',
-                  bgcolor: '#E3F2FD', 
-                  borderRadius: 2, 
+                  bgcolor: '#E3F2FD',
+                  borderRadius: 2,
                   border: '1px solid #BBDEFB',
                   boxShadow: 'none',
                   p: 2
@@ -5100,13 +5609,13 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                       Navegación Activa
                     </Typography>
                   </Box>
-                  
+
                   {/* Instrucción actual destacada */}
                   {nextInstruction && (
-                    <Box sx={{ 
-                      bgcolor: 'white', 
-                      borderRadius: 2, 
-                      p: 2, 
+                    <Box sx={{
+                      bgcolor: 'white',
+                      borderRadius: 2,
+                      p: 2,
                       mb: 2,
                       border: '1px solid #BBDEFB'
                     }}>
@@ -5116,7 +5625,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           {nextInstruction}
                         </Typography>
                       </Box>
-                      
+
                       <Box display="flex" alignItems="center" gap={3} mb={1}>
                         <Box display="flex" alignItems="center" gap={1}>
                           <Speed sx={{ fontSize: 16, color: '#1976D2' }} />
@@ -5131,12 +5640,12 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           </Typography>
                         </Box>
                       </Box>
-                      
+
                       <Box display="flex" alignItems="center" gap={1}>
                         <Chip
                           label="ACTUAL"
                           size="small"
-                          sx={{ 
+                          sx={{
                             bgcolor: '#1976D2',
                             color: 'white',
                             fontWeight: 600,
@@ -5148,7 +5657,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           <Chip
                             label={`📍 ${currentTipDestination?.name || 'Tip'}`}
                             size="small"
-                            sx={{ 
+                            sx={{
                               bgcolor: '#FF9800',
                               color: 'white',
                               fontWeight: 600,
@@ -5168,10 +5677,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                         Próximas instrucciones:
                       </Typography>
                       {navigationSteps.slice(currentStep + 1, currentStep + 3).map((step, index) => (
-                        <Box key={currentStep + 1 + index} sx={{ 
-                          bgcolor: 'white', 
-                          borderRadius: 1.5, 
-                          p: 1.5, 
+                        <Box key={currentStep + 1 + index} sx={{
+                          bgcolor: 'white',
+                          borderRadius: 1.5,
+                          p: 1.5,
                           mb: 1,
                           border: '1px solid #E0E0E0'
                         }}>
@@ -5196,9 +5705,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                 </Paper>
 
                 {/* Chatbox con Gemini */}
-                <Paper sx={{ 
+                <Paper sx={{
                   flex: '1 1 400px',
-                  bgcolor: '#F3E5F5', 
+                  bgcolor: '#F3E5F5',
                   borderRadius: 2,
                   border: '1px solid #E1BEE7',
                   boxShadow: 'none',
@@ -5208,16 +5717,16 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                 }}>
                   <Box sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
                     {/* Header del chat */}
-                    <Box sx={{ 
-                      p: 1.5, 
+                    <Box sx={{
+                      p: 1.5,
                       borderBottom: '1px solid #E1BEE7',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 1.5
                     }}>
-                      <Box sx={{ 
-                        bgcolor: 'rgba(156, 39, 176, 0.1)', 
-                        borderRadius: '50%', 
+                      <Box sx={{
+                        bgcolor: 'rgba(156, 39, 176, 0.1)',
+                        borderRadius: '50%',
                         p: 0.75,
                         display: 'flex',
                         alignItems: 'center',
@@ -5235,9 +5744,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                     </Box>
 
                     {/* Mensajes del chat */}
-                    <Box sx={{ 
-                      flex: 1, 
-                      p: 1.5, 
+                    <Box sx={{
+                      flex: 1,
+                      p: 1.5,
                       overflow: 'auto',
                       maxHeight: 280
                     }}>
@@ -5252,18 +5761,18 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                               maxWidth: '80%',
                               p: 1,
                               borderRadius: 2,
-                              bgcolor: msg.type === 'user' 
-                                ? '#E1BEE7' 
+                              bgcolor: msg.type === 'user'
+                                ? '#E1BEE7'
                                 : '#F5F5F5',
-                              border: msg.type === 'user' 
-                                ? '1px solid #CE93D8' 
+                              border: msg.type === 'user'
+                                ? '1px solid #CE93D8'
                                 : 'none'
                             }}>
                               <Typography variant="body2" sx={{ color: '#424242' }}>
                                 {msg.message}
                               </Typography>
-                              <Typography variant="caption" sx={{ 
-                                color: '#666', 
+                              <Typography variant="caption" sx={{
+                                color: '#666',
                                 display: 'block',
                                 mt: 0.5,
                                 fontSize: '0.65rem'
@@ -5274,7 +5783,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           </Box>
                         </Box>
                       ))}
-                      
+
                       {isTyping && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                           <Typography variant="body2" sx={{ color: '#666' }}>
@@ -5286,8 +5795,8 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                     </Box>
 
                     {/* Input del chat */}
-                    <Box sx={{ 
-                      p: 1.5, 
+                    <Box sx={{
+                      p: 1.5,
                       borderTop: '1px solid #E1BEE7',
                       display: 'flex',
                       gap: 1
@@ -5345,100 +5854,100 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
           {/* Recomendaciones de IA */}
           {showRecommendations && aiRecommendations.length > 0 && (
             <Box sx={{ width: '100%', mb: 3 }}>
-              <Paper sx={{ 
+              <Paper sx={{
                 bgcolor: '#F3E5F5',
                 border: '1px solid #E1BEE7',
                 borderRadius: 2,
                 boxShadow: 'none',
                 p: 2
               }}>
-                  <Box display="flex" alignItems="center" gap={1.5} mb={2}>
-                    <Box sx={{ 
-                      bgcolor: 'rgba(156, 39, 176, 0.1)', 
-                      borderRadius: '50%', 
-                      p: 0.75,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Typography sx={{ fontSize: 20 }}>🤖</Typography>
-                    </Box>
-                    <Box sx={{ flexGrow: 1 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 600, color: '#7B1FA2' }}>
-                        Recomendaciones de IA
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#9C27B0' }}>
-                        Basadas en tu ubicación y progreso del viaje
-                      </Typography>
-                    </Box>
-                    <IconButton 
-                      size="small"
-                      onClick={() => setShowRecommendations(false)}
-                      sx={{ color: '#666' }}
-                    >
-                      <ArrowBack />
-                    </IconButton>
+                <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+                  <Box sx={{
+                    bgcolor: 'rgba(156, 39, 176, 0.1)',
+                    borderRadius: '50%',
+                    p: 0.75,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Typography sx={{ fontSize: 20 }}>🤖</Typography>
                   </Box>
-                  
-                  <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
-                    {aiRecommendations.map((recommendation, index) => (
-                      <Box key={index} sx={{ 
-                        bgcolor: 'white', 
-                        borderRadius: 2, 
-                        p: 1.5, 
-                        mb: 1.5,
-                        border: recommendation.priority === 'high' ? '2px solid #9C27B0' : '1px solid #E0E0E0'
-                      }}>
-                        <Box display="flex" alignItems="center" gap={1.5} mb={1}>
-                          <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242' }}>
-                            {recommendation.title}
-                          </Typography>
-                          <Chip
-                            label={recommendation.priority === 'high' ? 'ALTA' : recommendation.priority === 'medium' ? 'MEDIA' : 'BAJA'}
-                            size="small"
-                            sx={{ 
-                              bgcolor: recommendation.priority === 'high' ? '#F44336' : 
-                                     recommendation.priority === 'medium' ? '#FF9800' : '#4CAF50',
-                              color: 'white',
-                              fontWeight: 600,
-                              fontSize: '0.65rem',
-                              height: 18
-                            }}
-                          />
-                        </Box>
-                        <Typography variant="body2" sx={{ color: '#666', mb: 1 }}>
-                          {recommendation.description}
+                  <Box sx={{ flexGrow: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: '#7B1FA2' }}>
+                      Recomendaciones de IA
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#9C27B0' }}>
+                      Basadas en tu ubicación y progreso del viaje
+                    </Typography>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    onClick={() => setShowRecommendations(false)}
+                    sx={{ color: '#666' }}
+                  >
+                    <ArrowBack />
+                  </IconButton>
+                </Box>
+
+                <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+                  {aiRecommendations.map((recommendation, index) => (
+                    <Box key={index} sx={{
+                      bgcolor: 'white',
+                      borderRadius: 2,
+                      p: 1.5,
+                      mb: 1.5,
+                      border: recommendation.priority === 'high' ? '2px solid #9C27B0' : '1px solid #E0E0E0'
+                    }}>
+                      <Box display="flex" alignItems="center" gap={1.5} mb={1}>
+                        <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242' }}>
+                          {recommendation.title}
                         </Typography>
-                        <Box display="flex" alignItems="center" gap={2}>
-                          <Box display="flex" alignItems="center" gap={0.5}>
-                            <AccessTime sx={{ fontSize: 14, color: '#666' }} />
-                            <Typography variant="caption" sx={{ color: '#666' }}>
-                              {recommendation.estimated_time} min
-                            </Typography>
-                          </Box>
-                          <Box display="flex" alignItems="center" gap={0.5}>
-                            <Place sx={{ fontSize: 14, color: '#666' }} />
-                            <Typography variant="caption" sx={{ color: '#666' }}>
-                              {recommendation.type === 'restaurant' ? 'Restaurante' :
-                               recommendation.type === 'attraction' ? 'Atracción' :
-                               recommendation.type === 'gas_station' ? 'Gasolinera' :
-                               recommendation.type === 'lodging' ? 'Alojamiento' : 'Actividad'}
-                            </Typography>
-                          </Box>
+                        <Chip
+                          label={recommendation.priority === 'high' ? 'ALTA' : recommendation.priority === 'medium' ? 'MEDIA' : 'BAJA'}
+                          size="small"
+                          sx={{
+                            bgcolor: recommendation.priority === 'high' ? '#F44336' :
+                              recommendation.priority === 'medium' ? '#FF9800' : '#4CAF50',
+                            color: 'white',
+                            fontWeight: 600,
+                            fontSize: '0.65rem',
+                            height: 18
+                          }}
+                        />
+                      </Box>
+                      <Typography variant="body2" sx={{ color: '#666', mb: 1 }}>
+                        {recommendation.description}
+                      </Typography>
+                      <Box display="flex" alignItems="center" gap={2}>
+                        <Box display="flex" alignItems="center" gap={0.5}>
+                          <AccessTime sx={{ fontSize: 14, color: '#666' }} />
+                          <Typography variant="caption" sx={{ color: '#666' }}>
+                            {recommendation.estimated_time} min
+                          </Typography>
+                        </Box>
+                        <Box display="flex" alignItems="center" gap={0.5}>
+                          <Place sx={{ fontSize: 14, color: '#666' }} />
+                          <Typography variant="caption" sx={{ color: '#666' }}>
+                            {recommendation.type === 'restaurant' ? 'Restaurante' :
+                              recommendation.type === 'attraction' ? 'Atracción' :
+                                recommendation.type === 'gas_station' ? 'Gasolinera' :
+                                  recommendation.type === 'lodging' ? 'Alojamiento' : 'Actividad'}
+                          </Typography>
                         </Box>
                       </Box>
-                    ))}
-                  </Box>
-                  
-                  {isLoadingRecommendations && (
-                    <Box display="flex" alignItems="center" justifyContent="center" gap={2} py={2}>
-                      <CircularProgress size={18} sx={{ color: '#9C27B0' }} />
-                      <Typography variant="body2" sx={{ color: '#666' }}>
-                        Obteniendo nuevas recomendaciones...
-                      </Typography>
                     </Box>
-                  )}
-                </Paper>
+                  ))}
+                </Box>
+
+                {isLoadingRecommendations && (
+                  <Box display="flex" alignItems="center" justifyContent="center" gap={2} py={2}>
+                    <CircularProgress size={18} sx={{ color: '#9C27B0' }} />
+                    <Typography variant="body2" sx={{ color: '#666' }}>
+                      Obteniendo nuevas recomendaciones...
+                    </Typography>
+                  </Box>
+                )}
+              </Paper>
             </Box>
           )}
         </Box>
@@ -5451,15 +5960,15 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         icon={<SpeedDialIcon />}
       >
         {actions
-          .filter(a=>a.show!==false)
+          .filter(a => a.show !== false)
           .map((action) => (
-          <SpeedDialAction
-            key={action.name}
-            icon={action.icon}
-            tooltipTitle={action.name}
-            onClick={action.action}
-          />
-        ))}
+            <SpeedDialAction
+              key={action.name}
+              icon={action.icon}
+              tooltipTitle={action.name}
+              onClick={action.action}
+            />
+          ))}
       </SpeedDial>
 
       {/* Dialog para compartir */}
@@ -5470,9 +5979,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
             Comparte este viaje con otros usuarios usando el código de invitación
           </Typography>
           {trip.joinCode && (
-            <Box sx={{ 
-              p: 2, 
-              bgcolor: 'action.hover', 
+            <Box sx={{
+              p: 2,
+              bgcolor: 'action.hover',
               borderRadius: 2,
               border: '1px dashed',
               borderColor: 'divider'
@@ -5484,10 +5993,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                 <Typography variant="h6" sx={{ fontWeight: 700, fontFamily: 'monospace', letterSpacing: 1 }}>
                   {trip.joinCode}
                 </Typography>
-                <IconButton 
-                  size="small" 
+                <IconButton
+                  size="small"
                   onClick={() => handleCopyJoinCode(trip.joinCode!)}
-                  sx={{ 
+                  sx={{
                     bgcolor: copiedCode === trip.joinCode ? 'success.main' : 'transparent',
                     color: copiedCode === trip.joinCode ? 'white' : 'inherit',
                     '&:hover': {
@@ -5549,10 +6058,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       </Dialog>
 
       {/* Dialog para editar ubicaciones */}
-      <Dialog 
-        open={openEditLocations} 
-        onClose={() => setOpenEditLocations(false)} 
-        maxWidth="md" 
+      <Dialog
+        open={openEditLocations}
+        onClose={() => setOpenEditLocations(false)}
+        maxWidth="md"
         fullWidth
         TransitionProps={{
           onEntered: () => {
@@ -5568,9 +6077,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                       const autocomplete = new window.google.maps.places.Autocomplete(inputElement, {
                         types: ['geocode']
                       });
-                      
+
                       (inputElement as any).__autocomplete = autocomplete;
-                      
+
                       autocomplete.addListener('place_changed', () => {
                         const place = autocomplete.getPlace();
                         if (place.geometry && place.geometry.location) {
@@ -5582,7 +6091,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           setEditOriginCoords(location);
                         }
                       });
-                      
+
                       setOriginAutocomplete(autocomplete);
                     }
                   }
@@ -5597,9 +6106,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                       const autocomplete = new window.google.maps.places.Autocomplete(inputElement, {
                         types: ['geocode']
                       });
-                      
+
                       (inputElement as any).__autocomplete = autocomplete;
-                      
+
                       autocomplete.addListener('place_changed', () => {
                         const place = autocomplete.getPlace();
                         if (place.geometry && place.geometry.location) {
@@ -5611,13 +6120,13 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           setEditDestinationCoords(location);
                         }
                       });
-                      
+
                       setDestinationAutocomplete(autocomplete);
                     }
                   }
                 }
               }, 100);
-              
+
               // Inicializar mapas si hay coordenadas
               setTimeout(() => {
                 initializeMapsInModal();
@@ -5714,8 +6223,8 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
             setEditOriginCoords(null);
             setEditDestinationCoords(null);
           }}>Cancelar</Button>
-          <Button 
-            onClick={handleUpdateTripLocations} 
+          <Button
+            onClick={handleUpdateTripLocations}
             variant="contained"
             disabled={!editOrigin || !editDestination || !editOriginCoords || !editDestinationCoords}
           >
@@ -6060,10 +6569,10 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       </Dialog>
 
       {/* Dialog para confirmar eliminación del viaje */}
-      <Dialog 
-        open={openDeleteDialog} 
+      <Dialog
+        open={openDeleteDialog}
         onClose={() => !deletingTrip && setOpenDeleteDialog(false)}
-        maxWidth="sm" 
+        maxWidth="sm"
         fullWidth
       >
         <DialogTitle sx={{ color: 'error.main', fontWeight: 600 }}>
@@ -6081,7 +6590,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
           </Typography>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
-          <Button 
+          <Button
             onClick={() => setOpenDeleteDialog(false)}
             disabled={deletingTrip}
           >
