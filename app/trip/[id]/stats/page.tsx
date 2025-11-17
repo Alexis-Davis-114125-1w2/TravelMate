@@ -70,8 +70,8 @@ export default function TripStatsPage({ params }: { params: Promise<{ id: string
         id: '1',
         name: 'Viaje a Cancún',
         destination: 'Cancún, México',
-        startDate: '2023-12-15',
-        endDate: '2023-12-22',
+        dateI: '2023-12-15',
+        dateF: '2023-12-22',
         participants: 4,
         status: 'completed',
         image: 'sun'
@@ -80,8 +80,8 @@ export default function TripStatsPage({ params }: { params: Promise<{ id: string
         id: '2',
         name: 'Escapada a Bariloche',
         destination: 'Bariloche, Argentina',
-        startDate: '2024-07-03',
-        endDate: '2024-07-10',
+        dateI: '2024-07-03',
+        dateF: '2024-07-10',
         participants: 2,
         status: 'planning',
         image: 'mountain'
@@ -90,8 +90,8 @@ export default function TripStatsPage({ params }: { params: Promise<{ id: string
         id: '3',
         name: 'Aventura en París',
         destination: 'París, Francia',
-        startDate: '2024-09-15',
-        endDate: '2024-09-22',
+        dateI: '2024-09-15',
+        dateF: '2024-09-22',
         participants: 3,
         status: 'planning',
         image: 'city'
@@ -100,8 +100,8 @@ export default function TripStatsPage({ params }: { params: Promise<{ id: string
       id: '4',
       name: 'Safari en Kenia',
       destination: 'Nairobi, Kenia',
-      startDate: '2025-02-10',
-      endDate: '2025-02-20',
+      dateI: '2025-02-10',
+      dateF: '2025-02-20',
       participants: 5,
       status: 'completed',
       image: 'sun'
@@ -110,8 +110,8 @@ export default function TripStatsPage({ params }: { params: Promise<{ id: string
       id: '5',
       name: 'Tour por Japón',
       destination: 'Tokio, Japón',
-      startDate: '2025-04-01',
-      endDate: '2025-04-15',
+      dateI: '2025-04-01',
+      dateF: '2025-04-15',
       participants: 6,
       status: 'planning',
       image: 'city'
@@ -120,8 +120,8 @@ export default function TripStatsPage({ params }: { params: Promise<{ id: string
       id: '6',
       name: 'Relax en Bali',
       destination: 'Bali, Indonesia',
-      startDate: '2025-08-05',
-      endDate: '2025-08-19',
+      dateI: '2025-08-05',
+      dateF: '2025-08-19',
       participants: 2,
       status: 'planning',
       image: 'sun'
@@ -130,8 +130,8 @@ export default function TripStatsPage({ params }: { params: Promise<{ id: string
       id: '7',
       name: 'Ruta por los Alpes',
       destination: 'Zermatt, Suiza',
-      startDate: '2025-01-12',
-      endDate: '2025-01-19',
+      dateI: '2025-01-12',
+      dateF: '2025-01-19',
       participants: 4,
       status: 'completed',
       image: 'mountain'
@@ -239,7 +239,7 @@ export default function TripStatsPage({ params }: { params: Promise<{ id: string
                   <Box display="flex" alignItems="center" gap={1}>
                     <CalendarToday sx={{ fontSize: 20, color: 'text.secondary' }} />
                     <Typography variant="body2" color="text.secondary">
-                      {formatDate(trip.startDate)} - {formatDate(trip.endDate)}
+                      {formatDate(trip.dateI)} - {formatDate(trip.dateF)}
                     </Typography>
                   </Box>
                   <Box display="flex" alignItems="center" gap={1}>

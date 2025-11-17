@@ -265,6 +265,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [originAutocomplete, setOriginAutocomplete] = useState<any>(null);
   const [destinationAutocomplete, setDestinationAutocomplete] = useState<any>(null);
   const [navigationMode, setNavigationMode] = useState<'to-origin' | 'to-destination' | null>(null);
+  const [editVehicle, setEditVehicle] = useState<'auto' | 'avion' | 'caminando'>('auto');
 
   // Eliminar viaje
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -1031,7 +1032,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
       const locationsData: any = {
         origin: editOrigin,
         destination: editDestination,
-        vehicle: trip.vehicle || 'auto',
+        vehicle: editVehicle,
         originCoords: editOriginCoords,
         destinationCoords: editDestinationCoords,
         originAddress: editOrigin,
@@ -4408,8 +4409,13 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           <IconButton
                             size="small"
                             onClick={() => {
+                              const allowed: Array<"auto" | "avion" | "caminando"> = ["auto", "avion", "caminando"];
                               setEditOrigin(trip.origin || '');
                               setEditDestination(trip.destination);
+                              setEditVehicle(allowed.includes(trip.vehicle as any) 
+                                ? (trip.vehicle as any)
+                                : "auto"
+                              );
                               // Si hay coordenadas, establecerlas también
                               if (trip.originLatitude && trip.originLongitude) {
                                 setEditOriginCoords({
@@ -4444,8 +4450,13 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                         <IconButton
                           size="small"
                           onClick={() => {
-                            setEditOrigin(trip.origin || '');
-                            setEditDestination(trip.destination);
+                            const allowed: Array<"auto" | "avion" | "caminando"> = ["auto", "avion", "caminando"];
+                              setEditOrigin(trip.origin || '');
+                              setEditDestination(trip.destination);
+                              setEditVehicle(allowed.includes(trip.vehicle as any) 
+                                ? (trip.vehicle as any)
+                                : "auto"
+                              );
                             // Si hay coordenadas, establecerlas también
                             if (trip.originLatitude && trip.originLongitude) {
                               setEditOriginCoords({
@@ -6215,6 +6226,66 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                 </Box>
               )}
             </Box>
+
+            {/* Selección de Vehículo */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242' }}>
+          Tipo de Vehículo
+        </Typography>
+        <ToggleButtonGroup
+          value={editVehicle}
+          exclusive
+          onChange={(e, newValue) => {
+            if (newValue !== null) {
+              setEditVehicle(newValue);
+            }
+          }}
+          aria-label="tipo de vehículo"
+          sx={{
+            display: 'flex',
+            gap: 1,
+            '& .MuiToggleButton-root': {
+              flex: 1,
+              flexDirection: 'column',
+              gap: 1,
+              py: 2,
+              borderRadius: 2,
+              border: '2px solid #E0E0E0',
+              '&:hover': {
+                bgcolor: 'rgba(25, 118, 210, 0.05)',
+                borderColor: '#1976D2',
+              },
+              '&.Mui-selected': {
+                bgcolor: 'rgba(25, 118, 210, 0.1)',
+                borderColor: '#1976D2',
+                color: '#1976D2',
+                '&:hover': {
+                  bgcolor: 'rgba(25, 118, 210, 0.15)',
+                },
+              },
+            },
+          }}
+        >
+          <ToggleButton value="auto" aria-label="auto">
+            <DirectionsCar sx={{ fontSize: 32 }} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              Auto
+            </Typography>
+          </ToggleButton>
+          <ToggleButton value="avion" aria-label="avión">
+            <Flight sx={{ fontSize: 32 }} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              Avión
+            </Typography>
+          </ToggleButton>
+          <ToggleButton value="caminando" aria-label="caminando">
+            <DirectionsWalk sx={{ fontSize: 32 }} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              Caminando
+            </Typography>
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
           </Box>
         </DialogContent>
         <DialogActions>
