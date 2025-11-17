@@ -265,6 +265,10 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [originAutocomplete, setOriginAutocomplete] = useState<any>(null);
   const [destinationAutocomplete, setDestinationAutocomplete] = useState<any>(null);
 
+  // Eliminar viaje
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [deletingTrip, setDeletingTrip] = useState(false);
+
   // Debug: Log cuando cambien los tips
   useEffect(() => {
     console.log('🔍 Tips cambiaron:', tips.length, tips);
@@ -390,6 +394,38 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
           initializeModalMap(destinationMapModalRef, editDestinationCoords, 'Destino', false);
         }
       }, 200);
+    }
+  };
+
+  //Eliminar viaje
+  const handleDeleteTrip = async () => {
+    if (!trip?.id || !user?.id) return;
+  
+    try {
+      setDeletingTrip(true);
+      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+    
+      const response = await fetch(
+        `${API_BASE_URL}/api/trips/${trip.id}/${userId}?userId=${userId}`,
+       {
+          method: 'DELETE',
+         headers: getAuthHeaders(),
+        }
+      );
+    
+      if (response.ok) {
+        toast.success('Viaje eliminado exitosamente');
+        router.push('/dashboard'); // Redirigir al dashboard
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Error al eliminar el viaje');
+      }
+    } catch (error) {
+      console.error('Error eliminando viaje:', error);
+      toast.error('Error de conexión al eliminar el viaje');
+    } finally {
+      setDeletingTrip(false);
+      setOpenDeleteDialog(false);
     }
   };
 
@@ -1162,7 +1198,7 @@ const isUserAdmin = trip &&
   const handleRemoveParticipant = async (participantId: number) => {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/trips/${trip?.id}/users/${user?.id}/${participantId}`,
+        `${API_BASE_URL}/api/trips/${trip?.id}/users/${participantId}/${user?.id}`,
         {
           method: 'DELETE',
           headers: getAuthHeaders(),
@@ -3727,7 +3763,8 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
   const actions = [
     { icon: <Edit />, name: 'Editar Viaje', action: () => router.push(`/trip/${tripId}/edit`) },
     { icon: <PersonAdd />, name: 'Agregar Miembros', action: () => router.push(`/trip/${tripId}/add-users`) },
-    { icon: <Share />, name: 'Compartir', action: () => setOpenShareDialog(true) },
+    { icon: <Share />, name: 'Compartir', action: () => setOpenShareDialog(true), show: true },
+    { icon: <Delete />, name: 'Eliminar Viaje', action: () => setOpenDeleteDialog(true), show: isUserAdmin },
   ];
 
   if (isLoading || loading || (!trip && !hasAttemptedLoad)) {
@@ -5413,7 +5450,9 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         sx={{ position: 'fixed', bottom: 16, right: 16 }}
         icon={<SpeedDialIcon />}
       >
-        {actions.map((action) => (
+        {actions
+          .filter(a=>a.show!==false)
+          .map((action) => (
           <SpeedDialAction
             key={action.name}
             icon={action.icon}
@@ -6016,6 +6055,46 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
             disabled={!purchaseDescription || !purchasePrice || parseFloat(purchasePrice) <= 0}
           >
             Agregar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog para confirmar eliminación del viaje */}
+      <Dialog 
+        open={openDeleteDialog} 
+        onClose={() => !deletingTrip && setOpenDeleteDialog(false)}
+        maxWidth="sm" 
+        fullWidth
+      >
+        <DialogTitle sx={{ color: 'error.main', fontWeight: 600 }}>
+          Eliminando el Viaje
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Esta acción no se puede deshacer
+          </Alert>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            ¿Estás seguro que deseas eliminar el viaje <strong>{trip?.name}</strong>?
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Se eliminará el viaje para todos los participantes.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button 
+            onClick={() => setOpenDeleteDialog(false)}
+            disabled={deletingTrip}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            startIcon={deletingTrip ? <CircularProgress size={16} color="inherit" /> : <Delete />}
+            onClick={handleDeleteTrip}
+            disabled={deletingTrip}
+          >
+            {deletingTrip ? 'Eliminando...' : 'Eliminar Viaje'}
           </Button>
         </DialogActions>
       </Dialog>

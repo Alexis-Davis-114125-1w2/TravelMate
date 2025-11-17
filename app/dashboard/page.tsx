@@ -512,8 +512,7 @@ export default function DashboardPage() {
           setTrips(tripsWithParticipants);
         }
         
-        // Mostrar mensaje de éxito (opcional)
-        alert('¡Te has unido al viaje exitosamente!');
+        //TODO mensaje de exito
       } else {
         const errorText = await response.text();
         console.error('Error al unirse al viaje:', errorText);
@@ -521,36 +520,6 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error('Error al unirse al viaje:', err);
-      setError('Error de conexión. Por favor, intenta de nuevo.');
-    }
-  };
-
-  const handleDeleteTrip = async () => {
-    if (!tripToDelete || !user?.id) return;
-  
-    try {
-      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
-    
-      const response = await fetch(
-        `${API_BASE_URL}/api/trips/${tripToDelete.id}/${userId}?userId=${userId}`,
-        {
-          method: 'DELETE',
-          headers: getAuthHeaders(),
-        }
-      );
-    
-      if (response.ok) {
-        // Remover el viaje de la lista
-        setTrips(trips.filter(t => t.id !== tripToDelete.id));
-        setDeleteDialogOpen(false);
-        setTripToDelete(null);
-      } else {
-        const errorText = await response.text();
-        console.error('Error al eliminar viaje:', errorText);
-        setError('No se pudo eliminar el viaje. Por favor, intenta de nuevo.');
-      }
-    } catch (err) {
-      console.error('Error al eliminar viaje:', err);
       setError('Error de conexión. Por favor, intenta de nuevo.');
     }
   };
@@ -1269,6 +1238,7 @@ export default function DashboardPage() {
                 {/* Trip Cards */}
                 {trips.map((trip) => {
                   const isPlanning = trip.status?.toLowerCase() === 'planning';
+                  const isActive = trip.status?.toLowerCase() === 'active';
                   const isAdmin = isUserAdmin(trip);
                   const pastelColor = getPastelColor(trip.status || '');
                   const tripImage = trip.image;
@@ -1312,28 +1282,7 @@ export default function DashboardPage() {
                       }}
                     >
                       <Box sx={{ position: 'relative', zIndex: 1, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                          {isAdmin && (
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                setTripToDelete(trip);
-                                setDeleteDialogOpen(true);
-                              }}
-                              sx={{
-                                position: 'absolute',
-                                top: -8,
-                                right: -8,
-                                bgcolor: 'rgba(244, 67, 54, 0.9)',
-                                color: 'white',
-                                zIndex: 2,
-                                '&:hover': {
-                                  bgcolor: 'rgba(244, 67, 54, 1)',
-                                },
-                              }}
-                            >
-                              <Delete sx={{ fontSize: 18 }} />
-                            </IconButton>
-                          )}
+                          
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                           <Avatar sx={{ 
                           bgcolor: pastelColor.text,
@@ -1373,7 +1322,8 @@ export default function DashboardPage() {
                         <Button
                           size="small"
                           variant="text"
-                          onClick={() => router.push(`/trip/${trip.id}/details`)}
+                          //TODO cambiar por estadisticas
+                          onClick={() => router.push(`/stats`)}
                           sx={{
                             color: pastelColor.text,
                             textTransform: 'none',
@@ -1381,13 +1331,13 @@ export default function DashboardPage() {
                             fontWeight: 500,
                           }}
                         >
-                          Ver Detalles
+                          Ver Estadisticas
                         </Button>
                         {isPlanning && (
                           <Button
                             size="small"
                             variant="text"
-                            onClick={() => router.push(`/trip/${trip.id}/destinations`)}
+                            onClick={() => router.push(`/trip/${trip.id}/details`)}
                             sx={{
                               color: pastelColor.text,
                               textTransform: 'none',
@@ -1395,7 +1345,22 @@ export default function DashboardPage() {
                               fontWeight: 500,
                             }}
                           >
-                            Destinos
+                            Ver Detalles
+                          </Button>
+                              )}
+                              {isActive && (
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={() => router.push(`/trip/${trip.id}/details`)}
+                            sx={{
+                              color: pastelColor.text,
+                              textTransform: 'none',
+                              fontSize: '0.75rem',
+                              fontWeight: 500,
+                            }}
+                          >
+                            Ver Detalles
                           </Button>
                               )}
                             </Box>
@@ -1502,28 +1467,6 @@ export default function DashboardPage() {
                           }}
                         >
                           <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 3, width: '100%' }}>
-                            {isAdmin && (
-                              <IconButton
-                                size="small"
-                                onClick={() => {
-                                  setTripToDelete(trip);
-                                  setDeleteDialogOpen(true);
-                                }}
-                                sx={{
-                                  position: 'absolute',
-                                  top: -8,
-                                  right: -8,
-                                  bgcolor: 'rgba(244, 67, 54, 0.9)',
-                                  color: 'white',
-                                  zIndex: 2,
-                                  '&:hover': {
-                                    bgcolor: 'rgba(244, 67, 54, 1)',
-                                  },
-                                }}
-                              >
-                                <Delete sx={{ fontSize: 18 }} />
-                              </IconButton>
-                            )}
                             <Avatar sx={{ 
                               bgcolor: pastelColor.text,
                               width: 56,
@@ -1777,30 +1720,6 @@ export default function DashboardPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Delete Trip Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>¿Eliminar viaje?</DialogTitle>
-        <DialogContent>
-          <Typography variant="body1" color="text.secondary">
-            ¿Estás seguro que deseas eliminar el viaje <strong>{tripToDelete?.name}</strong>?
-          </Typography>
-          <Typography variant="body2" color="error" sx={{ mt: 2 }}>
-            Esta acción no se puede deshacer.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ p: 3 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)}>
-            Cancelar
-          </Button>
-          <Button 
-            variant="contained" 
-            color="error"
-            onClick={handleDeleteTrip}
-          >
-            Eliminar
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }
