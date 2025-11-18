@@ -141,7 +141,7 @@ export default function Home() {
 
         {/* Features Grid */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4, mb: 8 }}>
-          <Box sx={{ flex: '1 1 300px', minWidth: 300 }}>
+          <Box sx={{ flex: '1 1 300px', minWidth: 300, minHeight: 300 }}>
             <Card sx={{ 
               height: '100%', 
               textAlign: 'center',
@@ -168,7 +168,7 @@ export default function Home() {
                   Planificación Inteligente
                 </Typography>
                 <Typography variant="body1" sx={{ opacity: 0.9, lineHeight: 1.6 }}>
-                  Organiza tus viajes con herramientas avanzadas de planificación, 
+                  Organiza tus viajes con herramientas avanzadas, 
                   itinerarios automáticos y recomendaciones personalizadas.
                 </Typography>
               </CardContent>
@@ -270,7 +270,7 @@ export default function Home() {
             </Box>
             <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
               <Card sx={{ textAlign: 'center', p: 3, background: 'linear-gradient(135deg, #66bb6a 0%, #81c784 100%)', color: 'white' }}>
-                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>4.9★</Typography>
+                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>4.9 ★</Typography>
                 <Typography variant="body1" sx={{ opacity: 0.9 }}>Calificación</Typography>
               </Card>
             </Box>

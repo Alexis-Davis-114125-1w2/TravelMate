@@ -396,4 +396,12 @@ export const api = {
     });
     return response;
   },
+
+  // Estadísticas
+  getUserStats: async (userId: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/stats/user/${userId}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
 };
