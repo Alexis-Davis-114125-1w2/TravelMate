@@ -7,7 +7,6 @@ export interface User {
   id: string;
   email: string;
   name?: string;
-  profilePictureUrl?: string;
 }
 
 export interface AuthContextType {
@@ -67,8 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               setUser({
                 id: localUserData.id.toString(),
                 email: localUserData.email,
-                name: localUserData.name,
-                profilePictureUrl: localUserData.profilePictureUrl || undefined
+                name: localUserData.name
               });
             } else if (response.status === 401) {
               // Token inválido, limpiar sesión
@@ -86,8 +84,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 setUser({
                   id: localUserData.id.toString(),
                   email: localUserData.email,
-                  name: localUserData.name,
-                  profilePictureUrl: localUserData.profilePictureUrl || undefined
+                  name: localUserData.name
                 });
               } else {
                 console.error('Datos de usuario incompletos, limpiando sesión');
@@ -106,8 +103,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               setUser({
                 id: localUserData.id.toString(),
                 email: localUserData.email,
-                name: localUserData.name,
-                profilePictureUrl: localUserData.profilePictureUrl || undefined
+                name: localUserData.name
               });
             } else {
               console.error('Datos de usuario incompletos, limpiando sesión');
@@ -150,8 +146,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser({
           id: data.id.toString(),
           email: data.email,
-          name: data.name,
-          profilePictureUrl: data.profilePictureUrl
+          name: data.name
         });
         return true;
       } else {
@@ -187,8 +182,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser({
           id: data.id.toString(),
           email: data.email,
-          name: data.name,
-          profilePictureUrl: data.profilePictureUrl
+          name: data.name
         });
         return true;
       } else {
@@ -252,8 +246,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               setUser({
                 id: userData.id.toString(),
                 email: userData.email,
-                name: userData.name,
-                profilePictureUrl: userData.profilePictureUrl || undefined
+                name: userData.name
               });
               
               // Limpiar la URL
@@ -301,8 +294,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUser({
               id: realUser.id,
               email: realUser.email,
-              name: realUser.name,
-              profilePictureUrl: realUser.profilePictureUrl || undefined
+              name: realUser.name
             });
             
             console.log('Usuario actualizado con datos del backend y token JWT guardado');
@@ -339,8 +331,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser({
       id: tempUser.id,
       email: tempUser.email,
-      name: tempUser.name,
-      profilePictureUrl: tempUser.profilePictureUrl || undefined
+      name: tempUser.name
     });
     
     return tempUser;

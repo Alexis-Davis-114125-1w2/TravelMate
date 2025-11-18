@@ -612,6 +612,51 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     }
   }, [user, isAuthenticated, tripId]);
 
+  // Cargar fotos de perfil de participantes de forma asíncrona (después de cargar el trip)
+  useEffect(() => {
+    const loadParticipantPhotos = async () => {
+      if (!participants || participants.length === 0) return;
+
+      try {
+        const participantsWithPhotos = await Promise.all(
+          participants.map(async (participant) => {
+            // Si ya tiene foto, no hacer nada
+            if (participant.profilePicture) {
+              return participant;
+            }
+
+            try {
+              const photoResponse = await fetch(
+                `${API_BASE_URL}/api/profile/${participant.id}/photo`,
+                { headers: getAuthHeaders() }
+              );
+
+              if (photoResponse.ok) {
+                const photoUrl = await photoResponse.text();
+                return { ...participant, profilePicture: photoUrl };
+              }
+            } catch (photoErr) {
+              console.error(`Error cargando foto de ${participant.name}:`, photoErr);
+            }
+
+            return participant;
+          })
+        );
+
+        setParticipants(participantsWithPhotos);
+      } catch (error) {
+        console.error('Error cargando fotos de participantes:', error);
+      }
+    };
+
+    // Esperar un poco para que el mapa se cargue primero
+    const timer = setTimeout(() => {
+      loadParticipantPhotos();
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [participants.length]); // Solo cuando cambie el número de participantes
+
   // Cargar tips desde la base de datos cuando se carga el viaje
   useEffect(() => {
     if (trip?.id) {
@@ -1923,7 +1968,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
             };
             setCurrentLocation(location);
             // Iniciar navegación después de obtener la ubicación
-            startNavigationWithLocation(location,mode);
+            startNavigationWithLocation(location, mode);
           },
           (error) => {
             console.error('Error obteniendo ubicación:', error);
@@ -4412,7 +4457,7 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                               const allowed: Array<"auto" | "avion" | "caminando"> = ["auto", "avion", "caminando"];
                               setEditOrigin(trip.origin || '');
                               setEditDestination(trip.destination);
-                              setEditVehicle(allowed.includes(trip.vehicle as any) 
+                              setEditVehicle(allowed.includes(trip.vehicle as any)
                                 ? (trip.vehicle as any)
                                 : "auto"
                               );
@@ -4451,12 +4496,12 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
                           size="small"
                           onClick={() => {
                             const allowed: Array<"auto" | "avion" | "caminando"> = ["auto", "avion", "caminando"];
-                              setEditOrigin(trip.origin || '');
-                              setEditDestination(trip.destination);
-                              setEditVehicle(allowed.includes(trip.vehicle as any) 
-                                ? (trip.vehicle as any)
-                                : "auto"
-                              );
+                            setEditOrigin(trip.origin || '');
+                            setEditDestination(trip.destination);
+                            setEditVehicle(allowed.includes(trip.vehicle as any)
+                              ? (trip.vehicle as any)
+                              : "auto"
+                            );
                             // Si hay coordenadas, establecerlas también
                             if (trip.originLatitude && trip.originLongitude) {
                               setEditOriginCoords({
@@ -6228,64 +6273,64 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
             </Box>
 
             {/* Selección de Vehículo */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242' }}>
-          Tipo de Vehículo
-        </Typography>
-        <ToggleButtonGroup
-          value={editVehicle}
-          exclusive
-          onChange={(e, newValue) => {
-            if (newValue !== null) {
-              setEditVehicle(newValue);
-            }
-          }}
-          aria-label="tipo de vehículo"
-          sx={{
-            display: 'flex',
-            gap: 1,
-            '& .MuiToggleButton-root': {
-              flex: 1,
-              flexDirection: 'column',
-              gap: 1,
-              py: 2,
-              borderRadius: 2,
-              border: '2px solid #E0E0E0',
-              '&:hover': {
-                bgcolor: 'rgba(25, 118, 210, 0.05)',
-                borderColor: '#1976D2',
-              },
-              '&.Mui-selected': {
-                bgcolor: 'rgba(25, 118, 210, 0.1)',
-                borderColor: '#1976D2',
-                color: '#1976D2',
-                '&:hover': {
-                  bgcolor: 'rgba(25, 118, 210, 0.15)',
-                },
-              },
-            },
-          }}
-        >
-          <ToggleButton value="auto" aria-label="auto">
-            <DirectionsCar sx={{ fontSize: 32 }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              Auto
-            </Typography>
-          </ToggleButton>
-          <ToggleButton value="avion" aria-label="avión">
-            <Flight sx={{ fontSize: 32 }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              Avión
-            </Typography>
-          </ToggleButton>
-          <ToggleButton value="caminando" aria-label="caminando">
-            <DirectionsWalk sx={{ fontSize: 32 }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              Caminando
-            </Typography>
-          </ToggleButton>
-        </ToggleButtonGroup>
-      </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242' }}>
+                Tipo de Vehículo
+              </Typography>
+              <ToggleButtonGroup
+                value={editVehicle}
+                exclusive
+                onChange={(e, newValue) => {
+                  if (newValue !== null) {
+                    setEditVehicle(newValue);
+                  }
+                }}
+                aria-label="tipo de vehículo"
+                sx={{
+                  display: 'flex',
+                  gap: 1,
+                  '& .MuiToggleButton-root': {
+                    flex: 1,
+                    flexDirection: 'column',
+                    gap: 1,
+                    py: 2,
+                    borderRadius: 2,
+                    border: '2px solid #E0E0E0',
+                    '&:hover': {
+                      bgcolor: 'rgba(25, 118, 210, 0.05)',
+                      borderColor: '#1976D2',
+                    },
+                    '&.Mui-selected': {
+                      bgcolor: 'rgba(25, 118, 210, 0.1)',
+                      borderColor: '#1976D2',
+                      color: '#1976D2',
+                      '&:hover': {
+                        bgcolor: 'rgba(25, 118, 210, 0.15)',
+                      },
+                    },
+                  },
+                }}
+              >
+                <ToggleButton value="auto" aria-label="auto">
+                  <DirectionsCar sx={{ fontSize: 32 }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Auto
+                  </Typography>
+                </ToggleButton>
+                <ToggleButton value="avion" aria-label="avión">
+                  <Flight sx={{ fontSize: 32 }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Avión
+                  </Typography>
+                </ToggleButton>
+                <ToggleButton value="caminando" aria-label="caminando">
+                  <DirectionsWalk sx={{ fontSize: 32 }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Caminando
+                  </Typography>
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>

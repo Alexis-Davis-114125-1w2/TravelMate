@@ -751,7 +751,7 @@ export default function DashboardPage() {
 
           <List>
             <ListItem disablePadding>
-              <ListItemButton onClick={() => handleNavigate('/perfil')}>
+              <ListItemButton onClick={() => handleNavigate('/profile')}>
                 <ListItemIcon>
                   <Person sx={{ color: '#03a9f4' }} />
                 </ListItemIcon>
