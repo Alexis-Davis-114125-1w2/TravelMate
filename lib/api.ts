@@ -404,4 +404,42 @@ export const api = {
     });
     return response;
   },
+
+  // Nuevos endpoints de estadísticas (preparados para futuras implementaciones)
+  getTripStats: async (tripId: string, userId: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/stats/trip/${tripId}?userId=${userId}`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  getMonthlyStats: async (userId: number, year?: number) => {
+    const url = year 
+      ? `${API_BASE_URL}/api/stats/user/${userId}/monthly?year=${year}`
+      : `${API_BASE_URL}/api/stats/user/${userId}/monthly`;
+    const response = await fetch(url, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  getExpenseStats: async (userId: number, startDate?: string, endDate?: string) => {
+    let url = `${API_BASE_URL}/api/stats/user/${userId}/expenses`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (params.toString()) url += `?${params.toString()}`;
+    
+    const response = await fetch(url, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
+
+  getLocationStats: async (userId: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/stats/user/${userId}/locations`, {
+      headers: getAuthHeaders(),
+    });
+    return response;
+  },
 };

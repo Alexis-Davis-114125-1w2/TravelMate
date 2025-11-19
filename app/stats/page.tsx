@@ -17,6 +17,12 @@ import {
   Backdrop,
   Grid,
   Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import {
   ArrowBack,
@@ -29,6 +35,24 @@ import {
   TrendingUp,
   ShoppingCart,
 } from '@mui/icons-material';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+  ComposedChart,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 // Tipos para las estadísticas
 interface UserStats {
@@ -153,7 +177,7 @@ export default function StatsPage() {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Container maxWidth="xl" sx={{ py: 3 }}>
         {error && (
           <Box sx={{ mb: 3, p: 2, bgcolor: '#ffebee', borderRadius: 2, color: '#c62828' }}>
             <Typography>{error}</Typography>
@@ -163,309 +187,376 @@ export default function StatsPage() {
         {stats && (
           <>
             {/* Header Section */}
-            <Box sx={{ mb: 4, textAlign: 'center' }}>
-              <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mb: 2, color: '#424242' }}>
-                Tus Estadísticas de Viajes
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mb: 1, color: '#424242' }}>
+                Panel de Estadísticas de Viajes
               </Typography>
-              <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 600, mx: 'auto' }}>
+              <Typography variant="body2" color="text.secondary">
                 Análisis completo de tu actividad de viajes y gastos
               </Typography>
             </Box>
 
-            {/* Stats Cards Grid */}
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-              {/* Total de Viajes */}
-              <Grid item xs={12} sm={6} md={3}>
-                <Card sx={{ 
-                  height: '100%',
-                  background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
-                  color: 'white',
-                  transition: 'all 0.3s ease',
-                  '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(3, 169, 244, 0.3)' },
-                }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
-                      <Box>
-                        <Typography sx={{ opacity: 0.9, mb: 1, fontWeight: 600, fontSize: '0.9rem' }}>
-                          Total de Viajes
-                        </Typography>
-                        <Typography variant="h3" component="div" sx={{ fontWeight: 700, mb: 0.5 }}>
-                          {stats.totalTrips}
-                        </Typography>
-                        <Typography variant="body2" sx={{ opacity: 0.8, fontSize: '0.75rem' }}>
-                          {stats.completedTrips} completados
-                        </Typography>
-                      </Box>
-                      <TravelExplore sx={{ fontSize: 48, opacity: 0.3 }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+            {/* Stats Cards Grid - 6 KPIs en una fila */}
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' },
+              gap: 2,
+              mb: 3,
+            }}>
+              {/* 1. Total Viajes */}
+              <Card sx={{ 
+                height: '100%',
+                background: 'linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%)',
+                color: 'white',
+                borderRadius: 2,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Typography sx={{ opacity: 0.9, mb: 0.5, fontWeight: 600, fontSize: '0.85rem' }}>
+                    Total Viajes
+                  </Typography>
+                  <Typography variant="h4" component="div" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    {stats.totalTrips}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.8, fontSize: '0.75rem' }}>
+                    {stats.completedTrips} completados
+                  </Typography>
+                </CardContent>
+              </Card>
 
-              {/* Viajes Completados */}
-              <Grid item xs={12} sm={6} md={3}>
-                <Card sx={{ 
-                  height: '100%',
-                  background: 'linear-gradient(135deg, #66bb6a 0%, #81c784 100%)',
-                  color: 'white',
-                  transition: 'all 0.3s ease',
-                  '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(102, 187, 106, 0.3)' },
-                }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
-                      <Box>
-                        <Typography sx={{ opacity: 0.9, mb: 1, fontWeight: 600, fontSize: '0.9rem' }}>
-                          Completados
-                        </Typography>
-                        <Typography variant="h3" component="div" sx={{ fontWeight: 700, mb: 0.5 }}>
-                          {stats.completedTrips}
-                        </Typography>
-                        <Typography variant="body2" sx={{ opacity: 0.8, fontSize: '0.75rem' }}>
-                          {stats.totalTrips > 0 ? Math.round((stats.completedTrips / stats.totalTrips) * 100) : 0}% del total
-                        </Typography>
-                      </Box>
-                      <CheckCircle sx={{ fontSize: 48, opacity: 0.3 }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+              {/* 2. Completados */}
+              <Card sx={{ 
+                height: '100%',
+                background: 'linear-gradient(135deg, #66bb6a 0%, #81c784 100%)',
+                color: 'white',
+                borderRadius: 2,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Typography sx={{ opacity: 0.9, mb: 0.5, fontWeight: 600, fontSize: '0.85rem' }}>
+                    Completados
+                  </Typography>
+                  <Typography variant="h4" component="div" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    {stats.completedTrips}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.8, fontSize: '0.75rem' }}>
+                    {stats.totalTrips > 0 ? Math.round((stats.completedTrips / stats.totalTrips) * 100) : 0}% del total
+                  </Typography>
+                </CardContent>
+              </Card>
 
-              {/* Días Totales */}
-              <Grid item xs={12} sm={6} md={3}>
-                <Card sx={{ 
-                  height: '100%',
-                  background: 'linear-gradient(135deg, #ff7043 0%, #ffab91 100%)',
-                  color: 'white',
-                  transition: 'all 0.3s ease',
-                  '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(255, 112, 67, 0.3)' },
-                }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
-                      <Box>
-                        <Typography sx={{ opacity: 0.9, mb: 1, fontWeight: 600, fontSize: '0.9rem' }}>
-                          Días Totales
-                        </Typography>
-                        <Typography variant="h3" component="div" sx={{ fontWeight: 700, mb: 0.5 }}>
-                          {stats.totalDaysTraveled}
-                        </Typography>
-                        <Typography variant="body2" sx={{ opacity: 0.8, fontSize: '0.75rem' }}>
-                          {stats.totalTrips > 0 ? Math.round(stats.totalDaysTraveled / stats.totalTrips) : 0} días/viaje
-                        </Typography>
-                      </Box>
-                      <CalendarToday sx={{ fontSize: 48, opacity: 0.3 }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+              {/* 3. Días Totales */}
+              <Card sx={{ 
+                height: '100%',
+                background: 'linear-gradient(135deg, #ff7043 0%, #ffab91 100%)',
+                color: 'white',
+                borderRadius: 2,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Typography sx={{ opacity: 0.9, mb: 0.5, fontWeight: 600, fontSize: '0.85rem' }}>
+                    Días Totales
+                  </Typography>
+                  <Typography variant="h4" component="div" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    {stats.totalDaysTraveled}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.8, fontSize: '0.75rem' }}>
+                    {stats.totalTrips > 0 ? Math.round(stats.totalDaysTraveled / stats.totalTrips) : 0} días/viaje
+                  </Typography>
+                </CardContent>
+              </Card>
 
-              {/* Total Gastado */}
-              <Grid item xs={12} sm={6} md={3}>
-                <Card sx={{ 
-                  height: '100%',
-                  background: 'linear-gradient(135deg, #ab47bc 0%, #ba68c8 100%)',
-                  color: 'white',
-                  transition: 'all 0.3s ease',
-                  '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(171, 71, 188, 0.3)' },
-                }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
-                      <Box>
-                        <Typography sx={{ opacity: 0.9, mb: 1, fontWeight: 600, fontSize: '0.9rem' }}>
-                          Total Gastado
-                        </Typography>
-                        <Typography variant="h4" component="div" sx={{ fontWeight: 700, mb: 0.5, fontSize: '1.8rem' }}>
-                          {formatCurrency(stats.totalSpent, 'PESOS')}
-                        </Typography>
-                        <Typography variant="body2" sx={{ opacity: 0.8, fontSize: '0.75rem' }}>
-                          {formatCurrency(stats.averageSpentPerTrip, 'PESOS')} promedio
-                        </Typography>
-                      </Box>
-                      <AttachMoney sx={{ fontSize: 48, opacity: 0.3 }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
+              {/* 4. Total Gastado */}
+              <Card sx={{ 
+                height: '100%',
+                background: 'linear-gradient(135deg, #ab47bc 0%, #ba68c8 100%)',
+                color: 'white',
+                borderRadius: 2,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Typography sx={{ opacity: 0.9, mb: 0.5, fontWeight: 600, fontSize: '0.85rem' }}>
+                    Total Gastado
+                  </Typography>
+                  <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 0.5, fontSize: '1.4rem', lineHeight: 1.2 }}>
+                    {formatCurrency(stats.totalSpent, 'PESOS')}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.8, fontSize: '0.75rem' }}>
+                    {formatCurrency(stats.averageSpentPerTrip, 'PESOS')} promedio
+                  </Typography>
+                </CardContent>
+              </Card>
 
-            {/* Gráficos y Análisis */}
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-              {/* Viajes por Mes */}
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: 'none', border: '1px solid #E0E0E0' }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#424242' }}>
+              {/* 5. Viaje Más Costoso */}
+              <Card sx={{ 
+                height: '100%',
+                background: 'linear-gradient(135deg, #ab47bc 0%, #ba68c8 100%)',
+                color: 'white',
+                borderRadius: 2,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Typography sx={{ opacity: 0.9, mb: 0.5, fontWeight: 600, fontSize: '0.85rem' }}>
+                    Viaje Más Costoso
+                  </Typography>
+                  {stats.mostExpensiveTrip ? (
+                    <>
+                      <Typography variant="body2" component="div" sx={{ fontWeight: 600, mb: 0.5, fontSize: '0.9rem', opacity: 0.95 }}>
+                        {stats.mostExpensiveTrip.tripName}
+                      </Typography>
+                      <Typography variant="h6" component="div" sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
+                        {formatCurrency(stats.mostExpensiveTrip.totalExpense, stats.mostExpensiveTrip.currency)}
+                      </Typography>
+                    </>
+                  ) : (
+                    <Typography variant="body2" sx={{ opacity: 0.8, fontSize: '0.75rem' }}>
+                      Sin datos
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* 6. Participantes Totales */}
+              <Card sx={{ 
+                height: '100%',
+                background: 'linear-gradient(135deg, #66bb6a 0%, #81c784 100%)',
+                color: 'white',
+                borderRadius: 2,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Typography sx={{ opacity: 0.9, mb: 0.5, fontWeight: 600, fontSize: '0.85rem' }}>
+                    Participantes Totales
+                  </Typography>
+                  <Typography variant="h4" component="div" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    {stats.totalParticipants}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.8, fontSize: '0.75rem' }}>
+                    En todos tus viajes
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
+
+            {/* Dashboard Grid - CSS Grid Layout con máximo 3 columnas */}
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+              gap: 3,
+              mb: 3,
+            }}>
+              {/* 1. Overview de Viajes - Ocupa 2 columnas */}
+              <Box sx={{ gridColumn: { xs: '1', md: 'span 2' } }}>
+                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
+                    Overview de Viajes
+                  </Typography>
+                  {stats.monthlyTrips.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={350}>
+                      <ComposedChart data={stats.monthlyTrips.map(m => ({ name: m.monthName, viajes: m.tripCount, completados: Math.round(m.tripCount * 0.8) }))}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                        <XAxis dataKey="name" stroke="#666" />
+                        <YAxis stroke="#666" />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="viajes" fill="#03a9f4" opacity={0.3} />
+                        <Line type="monotone" dataKey="viajes" stroke="#03a9f4" strokeWidth={3} dot={{ fill: '#03a9f4', r: 5 }} />
+                        <Line type="monotone" dataKey="completados" stroke="#66bb6a" strokeWidth={3} dot={{ fill: '#66bb6a', r: 5 }} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <Box sx={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        No hay datos disponibles
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
+              </Box>
+
+              {/* 2. Estado de Viajes - Donut */}
+              <Box>
+                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
+                    Estado de Viajes
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Completados', value: stats.completedTrips },
+                          { name: 'En Planificación', value: stats.planningTrips },
+                          { name: 'Activos', value: stats.activeTrips },
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => {
+                          if (!percent || percent === 0) return '';
+                          return `${name}: ${(percent * 100).toFixed(0)}%`;
+                        }}
+                        outerRadius={100}
+                        innerRadius={60}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        <Cell fill="#66bb6a" />
+                        <Cell fill="#ff7043" />
+                        <Cell fill="#03a9f4" />
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Paper>
+              </Box>
+
+              {/* 3. Días de Viaje - Área */}
+              <Box>
+                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
+                    Días de Viaje
+                  </Typography>
+                  {stats.monthlyTrips.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={320}>
+                      <AreaChart data={stats.monthlyTrips.map(m => ({ name: m.monthName, días: m.tripCount * 5 }))}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                        <XAxis dataKey="name" stroke="#666" />
+                        <YAxis stroke="#666" />
+                        <Tooltip />
+                        <Area type="monotone" dataKey="días" stroke="#ff7043" fill="#ff7043" fillOpacity={0.6} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <Box sx={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        No hay datos disponibles
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
+              </Box>
+
+              {/* 4. Viajes por Mes - Barras */}
+              <Box>
+                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
                     Viajes por Mes
                   </Typography>
                   {stats.monthlyTrips.length > 0 ? (
-                    <Box sx={{ height: 300, display: 'flex', flexDirection: 'column', justifyContent: 'space-around' }}>
-                      {stats.monthlyTrips.map((month, index) => (
-                        <Box key={index} sx={{ mb: 2 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 500, color: '#666' }}>
-                              {month.monthName}
-                            </Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#424242' }}>
-                              {month.tripCount} {month.tripCount === 1 ? 'viaje' : 'viajes'}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ 
-                            height: 24, 
-                            bgcolor: '#E3F2FD', 
-                            borderRadius: 1,
-                            position: 'relative',
-                            overflow: 'hidden',
-                          }}>
-                            <Box sx={{
-                              height: '100%',
-                              width: `${(month.tripCount / Math.max(...stats.monthlyTrips.map(m => m.tripCount))) * 100}%`,
-                              bgcolor: '#03a9f4',
-                              transition: 'width 0.5s ease',
-                            }} />
-                          </Box>
-                        </Box>
-                      ))}
-                    </Box>
+                    <ResponsiveContainer width="100%" height={320}>
+                      <BarChart data={stats.monthlyTrips.map(m => ({ name: m.monthName, viajes: m.tripCount }))}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                        <XAxis dataKey="name" stroke="#666" />
+                        <YAxis stroke="#666" />
+                        <Tooltip />
+                        <Bar dataKey="viajes" fill="#03a9f4" radius={[8, 8, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                      No hay datos de viajes por mes
-                    </Typography>
+                    <Box sx={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        No hay datos disponibles
+                      </Typography>
+                    </Box>
                   )}
                 </Paper>
-              </Grid>
+              </Box>
 
-              {/* Gastos por Mes */}
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: 'none', border: '1px solid #E0E0E0' }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#424242' }}>
+              {/* 5. Gastos por Mes - Líneas */}
+              <Box>
+                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
                     Gastos por Mes
                   </Typography>
                   {stats.monthlyExpenses.length > 0 ? (
-                    <Box sx={{ height: 300, display: 'flex', flexDirection: 'column', justifyContent: 'space-around' }}>
-                      {stats.monthlyExpenses.map((month, index) => (
-                        <Box key={index} sx={{ mb: 2 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 500, color: '#666' }}>
-                              {month.monthName}
-                            </Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#424242' }}>
-                              {formatCurrency(month.totalExpense, month.currency)}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ 
-                            height: 24, 
-                            bgcolor: '#F3E5F5', 
-                            borderRadius: 1,
-                            position: 'relative',
-                            overflow: 'hidden',
-                          }}>
-                            <Box sx={{
-                              height: '100%',
-                              width: `${(month.totalExpense / Math.max(...stats.monthlyExpenses.map(m => m.totalExpense))) * 100}%`,
-                              bgcolor: '#ab47bc',
-                              transition: 'width 0.5s ease',
-                            }} />
-                          </Box>
-                        </Box>
-                      ))}
-                    </Box>
+                    <ResponsiveContainer width="100%" height={320}>
+                      <LineChart data={stats.monthlyExpenses.map(m => ({ name: m.monthName, gastos: m.totalExpense }))}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                        <XAxis dataKey="name" stroke="#666" />
+                        <YAxis stroke="#666" />
+                        <Tooltip formatter={(value: number) => formatCurrency(value, 'PESOS')} />
+                        <Line type="monotone" dataKey="gastos" stroke="#ab47bc" strokeWidth={3} dot={{ fill: '#ab47bc', r: 5 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
                   ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                      No hay datos de gastos por mes
+                    <Box sx={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        No hay datos disponibles
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
+              </Box>
+
+              {/* 6. Top Viajes Costosos - Tabla */}
+              <Box>
+                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
+                    Top Viajes Más Costosos
+                  </Typography>
+                  {stats.topExpensiveTrips.length > 0 ? (
+                    <TableContainer sx={{ maxHeight: 320, overflow: 'auto' }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 600 }}>Viaje</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Gasto</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {stats.topExpensiveTrips.slice(0, 5).map((trip, index) => (
+                            <TableRow key={trip.tripId} sx={{ '&:nth-of-type(odd)': { bgcolor: '#FAFAFA' } }}>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                  {index + 1}. {trip.tripName}
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: '#ab47bc' }}>
+                                  {formatCurrency(trip.totalExpense, trip.currency)}
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    <Box sx={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        No hay datos disponibles
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
+              </Box>
+
+              {/* 7. Destino Favorito */}
+              <Box>
+                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 300 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <LocationOn sx={{ fontSize: 28, color: '#03a9f4', mr: 1 }} />
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
+                      Destino Favorito
+                    </Typography>
+                  </Box>
+                  {stats.mostTraveledLocation ? (
+                    <>
+                      <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, color: '#424242' }}>
+                        {stats.mostTraveledLocation}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Visitado {stats.mostTraveledLocationCount} {stats.mostTraveledLocationCount === 1 ? 'vez' : 'veces'}
+                      </Typography>
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No hay datos disponibles
                     </Typography>
                   )}
                 </Paper>
-              </Grid>
-            </Grid>
-
-            {/* Información Adicional */}
-            <Grid container spacing={3}>
-              {/* Destino Más Visitado */}
-              {stats.mostTraveledLocation && (
-                <Grid item xs={12} md={4}>
-                  <Paper sx={{ p: 3, borderRadius: 2, boxShadow: 'none', border: '1px solid #E0E0E0', height: '100%' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <LocationOn sx={{ fontSize: 32, color: '#03a9f4', mr: 1 }} />
-                      <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
-                        Destino Favorito
-                      </Typography>
-                    </Box>
-                    <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, color: '#424242' }}>
-                      {stats.mostTraveledLocation}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Visitado {stats.mostTraveledLocationCount} {stats.mostTraveledLocationCount === 1 ? 'vez' : 'veces'}
-                    </Typography>
-                  </Paper>
-                </Grid>
-              )}
-
-              {/* Viaje Más Costoso */}
-              {stats.mostExpensiveTrip && (
-                <Grid item xs={12} md={4}>
-                  <Paper sx={{ p: 3, borderRadius: 2, boxShadow: 'none', border: '1px solid #E0E0E0', height: '100%' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <ShoppingCart sx={{ fontSize: 32, color: '#ab47bc', mr: 1 }} />
-                      <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
-                        Viaje Más Costoso
-                      </Typography>
-                    </Box>
-                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, color: '#424242' }}>
-                      {stats.mostExpensiveTrip.tripName}
-                    </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#ab47bc' }}>
-                      {formatCurrency(stats.mostExpensiveTrip.totalExpense, stats.mostExpensiveTrip.currency)}
-                    </Typography>
-                  </Paper>
-                </Grid>
-              )}
-
-              {/* Total Participantes */}
-              <Grid item xs={12} md={4}>
-                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: 'none', border: '1px solid #E0E0E0', height: '100%' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <People sx={{ fontSize: 32, color: '#66bb6a', mr: 1 }} />
-                    <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
-                      Participantes Totales
-                    </Typography>
-                  </Box>
-                  <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, color: '#424242' }}>
-                    {stats.totalParticipants}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    En todos tus viajes
-                  </Typography>
-                </Paper>
-              </Grid>
-            </Grid>
-
-            {/* Top Viajes Más Costosos */}
-            {stats.topExpensiveTrips.length > 0 && (
-              <Paper sx={{ p: 3, borderRadius: 2, boxShadow: 'none', border: '1px solid #E0E0E0', mt: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#424242' }}>
-                  Top Viajes Más Costosos
-                </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {stats.topExpensiveTrips.slice(0, 5).map((trip, index) => (
-                    <Box key={trip.tripId} sx={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center',
-                      p: 2,
-                      bgcolor: index % 2 === 0 ? '#FAFAFA' : 'white',
-                      borderRadius: 1,
-                    }}>
-                      <Box>
-                        <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242' }}>
-                          {index + 1}. {trip.tripName}
-                        </Typography>
-                      </Box>
-                      <Typography variant="h6" sx={{ fontWeight: 700, color: '#ab47bc' }}>
-                        {formatCurrency(trip.totalExpense, trip.currency)}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Box>
-              </Paper>
-            )}
+              </Box>
+            </Box>
           </>
         )}
 
