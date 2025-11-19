@@ -139,7 +139,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           id: data.id,
           email: data.email,
           name: data.name,
-          profilePictureUrl: data.profilePictureUrl,
           provider: data.provider
         }));
         
@@ -175,7 +174,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           id: data.id,
           email: data.email,
           name: data.name,
-          profilePictureUrl: data.profilePictureUrl,
           provider: data.provider
         }));
         
@@ -239,7 +237,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 id: userData.id,
                 email: userData.email,
                 name: userData.name,
-                profilePictureUrl: userData.profilePictureUrl,
                 provider: userData.provider
               }));
               
@@ -283,7 +280,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               id: data.id.toString(),
               email: data.email,
               name: data.name,
-              profilePictureUrl: data.profilePictureUrl,
               provider: data.provider
             };
             

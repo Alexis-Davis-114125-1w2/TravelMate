@@ -1323,7 +1323,7 @@ export default function DashboardPage() {
                           size="small"
                           variant="text"
                           //TODO cambiar por estadisticas
-                          onClick={() => router.push(`/stats`)}
+                          onClick={() => router.push(`/stats/${trip.id}`)}
                           sx={{
                             color: pastelColor.text,
                             textTransform: 'none',
@@ -1424,7 +1424,7 @@ export default function DashboardPage() {
                     {/* Trip Cards in List View */}
                     {trips.map((trip) => {
                       const isPlanning = trip.status?.toLowerCase() === 'planning';
-                      const isAdmin = isUserAdmin(trip);
+                      const isActive = trip.status?.toLowerCase() === 'active';
                       const pastelColor = getPastelColor(trip.status || '');
                       const tripImage = trip.image;
                       const hasImage = tripImage && tripImage !== null && tripImage.trim() !== '';
@@ -1505,7 +1505,7 @@ export default function DashboardPage() {
                               <Button
                                 size="small"
                                 variant="outlined"
-                                onClick={() => router.push(`/trip/${trip.id}/details`)}
+                                onClick={() => router.push(`/stats/${trip.id}`)}
                                 sx={{
                                   borderColor: pastelColor.text,
                                   color: pastelColor.text,
@@ -1514,7 +1514,7 @@ export default function DashboardPage() {
                                   fontWeight: 500,
                                 }}
                               >
-                                Ver Detalles
+                                Ver Estadisticas
                               </Button>
                               {isPlanning && (
                                 <Button
@@ -1529,7 +1529,23 @@ export default function DashboardPage() {
                                     fontWeight: 500,
                                   }}
                                 >
-                                  Destinos
+                                  Ver Detalles
+                                </Button>
+                              )}
+                              {isActive && (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => router.push(`/trip/${trip.id}/destinations`)}
+                                  sx={{
+                                    borderColor: pastelColor.text,
+                                    color: pastelColor.text,
+                                    textTransform: 'none',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  Ver Detalles
                                 </Button>
                               )}
                             </Box>

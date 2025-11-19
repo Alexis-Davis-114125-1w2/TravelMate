@@ -1682,8 +1682,10 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     }
   };
 
-  // Buscar aeropuerto más cercano
-  const findNearestAirport = async (location: { lat: number, lng: number }): Promise<{ name: string, location: { lat: number, lng: number } } | null> => {
+  // Buscar aeropuerto más cercano (solo aeropuertos reales, no aeroclubs)
+  const findNearestAirport = async (
+    location: { lat: number, lng: number }
+  ): Promise<{ name: string, location: { lat: number, lng: number } } | null> => {
     return new Promise((resolve) => {
       if (!map) {
         resolve(null);
@@ -1691,69 +1693,101 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
       }
 
       const placesService = new window.google.maps.places.PlacesService(map);
+
       const request = {
         location: new window.google.maps.LatLng(location.lat, location.lng),
-        radius: 200000, // 100km de radio
-        keyword: 'aeropuerto airport internacional',
+        radius: 100000, // 100km
+        keyword: 'aeropuerto airport international intl terminal aeropuertos',
         type: 'airport'
       };
 
       placesService.nearbySearch(request, (results: any[], status: any) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
-          console.log(`🛫 Encontrados ${results.length} aeropuertos cercanos`);
-
-          // Filtrar solo aeropuertos importantes (con "aeropuerto" o "airport" en el nombre)
-          const majorAirports = results.filter(airport => {
-            const name = airport.name.toLowerCase();
-            return name.includes('aeropuerto') ||
-              name.includes('airport') ||
-              name.includes('internacional') ||
-              name.includes('international');
-          });
-
-          const airportsToSearch = majorAirports.length > 0 ? majorAirports : results;
-
-          // Ordenar por distancia
-          const sortedAirports = airportsToSearch.sort((a, b) => {
-            const distA = calculateDistance(
-              location.lat,
-              location.lng,
-              a.geometry.location.lat(),
-              a.geometry.location.lng()
-            );
-            const distB = calculateDistance(
-              location.lat,
-              location.lng,
-              b.geometry.location.lat(),
-              b.geometry.location.lng()
-            );
-            return distA - distB;
-          });
-
-          const nearestAirport = sortedAirports[0];
-          const distance = calculateDistance(
-            location.lat,
-            location.lng,
-            nearestAirport.geometry.location.lat(),
-            nearestAirport.geometry.location.lng()
-          );
-
-          console.log(`✈️ Aeropuerto más cercano: ${nearestAirport.name} (${distance.toFixed(1)} km)`);
-
-          resolve({
-            name: nearestAirport.name,
-            location: {
-              lat: nearestAirport.geometry.location.lat(),
-              lng: nearestAirport.geometry.location.lng()
-            }
-          });
-        } else {
+        if (status !== window.google.maps.places.PlacesServiceStatus.OK || !results.length) {
           console.log('❌ No se encontraron aeropuertos cercanos');
           resolve(null);
+          return;
         }
+
+        console.log(`🛫 Encontrados ${results.length} posibles aeropuertos`);
+
+        // ❌ Palabras a excluir (aeroclubs, escuelas, etc.)
+        const bannedWords = [
+          "aeroclub",
+          "club",
+          "hangar",
+          "escuela",
+          "flight",
+          "vuelo",
+          "private",
+          "helicopter",
+          "heli",
+          "ultraliviano",
+          "airfield",
+          "airstrip"
+        ];
+
+        // ✔️ Palabras válidas para aeropuertos reales
+        const requiredWords = [
+          "aeropuerto",
+          "airport",
+          "aeroporto",
+          "international",
+          "internacional",
+          "terminal"
+        ];
+
+        const filterAirports = results.filter((place) => {
+          const name = place.name?.toLowerCase() || "";
+
+          // ❌ Excluir aeroclubs por nombre
+          if (bannedWords.some(b => name.includes(b))) return false;
+
+          // ✔️ Debe contener palabras válidas
+          if (!requiredWords.some(w => name.includes(w))) return false;
+
+          // ✔️ Asegurar que sea realmente un aeropuerto
+          if (!place.types?.includes("airport")) return false;
+
+          // ✔️ Evitar aeródromos pequeños sin geometría válida
+          if (!place.geometry?.location) return false;
+
+          return true;
+        });
+
+        const airports = filterAirports.length ? filterAirports : results;
+
+        if (!airports.length) {
+          console.log("❌ Todos eran aeroclubs u otros lugares no válidos");
+          resolve(null);
+          return;
+        }
+
+        // Ordenar por distancia
+        const sorted = airports.sort((a, b) => {
+          const distA = calculateDistance(
+            location.lat, location.lng,
+            a.geometry.location.lat(), a.geometry.location.lng()
+          );
+          const distB = calculateDistance(
+            location.lat, location.lng,
+            b.geometry.location.lat(), b.geometry.location.lng()
+          );
+          return distA - distB;
+        });
+
+        const nearestAirport = sorted[0];
+
+        resolve({
+          name: nearestAirport.name,
+          location: {
+            lat: nearestAirport.geometry.location.lat(),
+            lng: nearestAirport.geometry.location.lng()
+          }
+        });
       });
     });
   };
+
 
   // Función fallback para mostrar ruta sin Directions API
   const showRouteFallback = (origin: { lat: number, lng: number }, destination: { lat: number, lng: number }) => {

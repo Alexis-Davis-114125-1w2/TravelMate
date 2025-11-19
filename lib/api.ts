@@ -405,8 +405,7 @@ export const api = {
     return response;
   },
 
-  // Nuevos endpoints de estadísticas (preparados para futuras implementaciones)
-  getTripStats: async (tripId: string, userId: number) => {
+  getTripStatsBy: async (tripId: number, userId: number) => {
     const response = await fetch(`${API_BASE_URL}/api/stats/trip/${tripId}?userId=${userId}`, {
       headers: getAuthHeaders(),
     });
