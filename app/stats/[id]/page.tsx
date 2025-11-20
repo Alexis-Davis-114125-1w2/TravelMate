@@ -3,7 +3,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, API_BASE_URL, getAuthHeaders } from '@/lib/api';
 import {
     Box,
     Container,
@@ -23,6 +23,7 @@ import {
     TableHead,
     TableRow,
     Chip,
+    Avatar,
 } from '@mui/material';
 import {
     ArrowBack,
@@ -65,9 +66,10 @@ interface TripStats {
     // Participantes
     totalParticipants: number;
     participantsList: Array<{
-        userId: number;
+        id: number;
         userName: string;
         email: string;
+        profilePicture: string;
     }>;
 
     // Gastos generales
@@ -136,6 +138,58 @@ export default function TripStatsPage() {
         }
     }, [isAuthenticated, isLoading, router]);
 
+    // Cargar fotos de perfil de participantes de estadísticas
+    useEffect(() => {
+        const loadParticipantPhotosFromStats = async () => {
+            if (!stats || !stats.participantsList || stats.participantsList.length === 0) return;
+
+            try {
+                const participantsWithPhotos = await Promise.all(
+                    stats.participantsList.map(async (participant) => {
+                        // Si ya tiene foto, no hacer nada
+                        if (participant.profilePicture) {
+                            return participant;
+                        }
+                        try {
+                            const photoResponse = await fetch(
+                                `${API_BASE_URL}/api/profile/${participant.id}/photo`,
+                                { headers: getAuthHeaders() }
+                            );
+
+                            if (photoResponse.ok) {
+                                const photoUrl = await photoResponse.text();
+                                return { ...participant, profilePicture: photoUrl };
+                            }
+                        } catch (photoErr) {
+                            console.error(`Error cargando foto de ${participant.userName}:`, photoErr);
+                        }
+
+                        return participant;
+                    })
+                );
+
+                // Actualizar stats con las fotos
+                setStats(prevStats => {
+                    if (!prevStats) return null;
+                    return {
+                        ...prevStats,
+                        participantsList: participantsWithPhotos
+                    };
+                });
+            } catch (error) {
+                console.error('Error cargando fotos de participantes:', error);
+            }
+        };
+
+        // Esperar un poco para que las estadísticas se carguen primero
+        const timer = setTimeout(() => {
+            loadParticipantPhotosFromStats();
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [stats?.participantsList]); // Solo cuando cambie el número de participantes
+
+
     useEffect(() => {
         const fetchStats = async () => {
             if (!user?.id || !tripId) return;
@@ -181,7 +235,6 @@ export default function TripStatsPage() {
     if (!isAuthenticated) {
         return null;
     }
-
     const formatCurrency = (amount: number, currency: string = 'PESOS') => {
         const formatter = new Intl.NumberFormat('es-AR', {
             style: 'currency',
@@ -531,36 +584,149 @@ export default function TripStatsPage() {
                             </Box>
 
                             {/* 4. Gastos por Categoría */}
-                            <Box>
+                            <Box sx={{ gridColumn: { xs: '1', md: 'span 2' } }}>
                                 <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
                                     <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
                                         Gastos por Categoría
                                     </Typography>
                                     {stats.expensesByCategory.length > 0 ? (
-                                        <ResponsiveContainer width="100%" height={320}>
-                                            <PieChart>
-                                                <Pie
-                                                    data={stats.expensesByCategory}
-                                                    cx="50%"
-                                                    cy="50%"
-                                                    labelLine={false}
-                                                    label={(props: any) => {
-                                                        const { category, percentage } = props;
-                                                        return `${category}: ${percentage?.toFixed(0)}%`;
-                                                    }}
-                                                    outerRadius={100}
-                                                    fill="#8884d8"
-                                                    dataKey="totalAmount"
-                                                >
-                                                    {stats.expensesByCategory.map((entry, index) => (
-                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                    ))}
-                                                </Pie>
-                                                <Tooltip formatter={(value: number) => formatCurrency(value, stats.currency)} />
-                                            </PieChart>
-                                        </ResponsiveContainer>
+                                        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, height: 350 }}>
+                                            {/* Gráfico de Torta */}
+                                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <PieChart>
+                                                        <Pie
+                                                            data={stats.expensesByCategory}
+                                                            cx="50%"
+                                                            cy="50%"
+                                                            labelLine={false}
+                                                            label={(props: any) => {
+                                                                const { percentage } = props;
+                                                                if (!percentage || percentage < 5) return ''; // Solo mostrar si es mayor al 5%
+                                                                return `${percentage?.toFixed(0)}%`;
+                                                            }}
+                                                            outerRadius={80}
+                                                            fill="#8884d8"
+                                                            dataKey="totalAmount"
+                                                        >
+                                                            {stats.expensesByCategory.map((entry, index) => (
+                                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                            ))}
+                                                        </Pie>
+                                                        <Tooltip
+                                                            formatter={(value: number) => formatCurrency(value, stats.currency)}
+                                                            contentStyle={{
+                                                                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                                                border: '1px solid #E0E0E0',
+                                                                borderRadius: '8px',
+                                                                padding: '10px'
+                                                            }}
+                                                        />
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                            </Box>
+
+                                            {/* Lista de Categorías */}
+                                            <Box sx={{
+                                                flex: 1,
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: 1.5,
+                                                overflowY: 'auto',
+                                                pr: 1,
+                                                maxHeight: 350
+                                            }}>
+                                                {stats.expensesByCategory.map((category, index) => (
+                                                    <Box
+                                                        key={index}
+                                                        sx={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 2,
+                                                            p: 1.5,
+                                                            bgcolor: '#FAFAFA',
+                                                            borderRadius: 2,
+                                                            border: '1px solid #E0E0E0',
+                                                            transition: 'all 0.2s',
+                                                            '&:hover': {
+                                                                transform: 'translateX(4px)',
+                                                                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                                                                borderColor: COLORS[index % COLORS.length]
+                                                            }
+                                                        }}
+                                                    >
+                                                        {/* Color indicator */}
+                                                        <Box
+                                                            sx={{
+                                                                width: 12,
+                                                                height: 12,
+                                                                borderRadius: '50%',
+                                                                bgcolor: COLORS[index % COLORS.length],
+                                                                flexShrink: 0
+                                                            }}
+                                                        />
+
+                                                        {/* Información de la categoría */}
+                                                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                            <Typography
+                                                                variant="body2"
+                                                                sx={{
+                                                                    fontWeight: 600,
+                                                                    color: '#424242',
+                                                                    mb: 0.5,
+                                                                    fontSize: '0.9rem',
+                                                                    whiteSpace: 'nowrap',
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis'
+                                                                }}
+                                                            >
+                                                                {category.category}
+                                                            </Typography>
+
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                                                <Typography
+                                                                    variant="body2"
+                                                                    sx={{
+                                                                        fontWeight: 700,
+                                                                        color: COLORS[index % COLORS.length],
+                                                                        fontSize: '0.95rem'
+                                                                    }}
+                                                                >
+                                                                    {formatCurrency(category.totalAmount, stats.currency)}
+                                                                </Typography>
+                                                                <Chip
+                                                                    label={`${category.percentage.toFixed(1)}%`}
+                                                                    size="small"
+                                                                    sx={{
+                                                                        bgcolor: `${COLORS[index % COLORS.length]}20`,
+                                                                        color: COLORS[index % COLORS.length],
+                                                                        fontWeight: 600,
+                                                                        fontSize: '0.7rem',
+                                                                        height: '20px'
+                                                                    }}
+                                                                />
+                                                            </Box>
+
+                                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                                                {category.expenseCount} {category.expenseCount === 1 ? 'gasto' : 'gastos'}
+                                                            </Typography>
+
+                                                            {/* Barra de progreso */}
+                                                            <Box sx={{ mt: 1, width: '100%', height: 6, bgcolor: '#E0E0E0', borderRadius: 1, overflow: 'hidden' }}>
+                                                                <Box sx={{
+                                                                    width: `${category.percentage}%`,
+                                                                    height: '100%',
+                                                                    bgcolor: COLORS[index % COLORS.length],
+                                                                    transition: 'width 0.5s ease'
+                                                                }} />
+                                                            </Box>
+                                                        </Box>
+                                                    </Box>
+                                                ))}
+                                            </Box>
+                                        </Box>
                                     ) : (
-                                        <Box sx={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Box sx={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             <Typography variant="body2" color="text.secondary">
                                                 No hay gastos por categoría
                                             </Typography>
@@ -595,33 +761,114 @@ export default function TripStatsPage() {
                                 </Paper>
                             </Box>
 
-                            {/* 6. Lista de Participantes */}
+                            {/* 6. Gastos por Participante */}
                             <Box>
                                 <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
                                     <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
-                                        Lista de Participantes
+                                        Lista de Gastos por Participante
                                     </Typography>
-                                    <Box sx={{ maxHeight: 320, overflow: 'auto' }}>
-                                        {stats.participantsList.map((participant, index) => (
-                                            <Box
-                                                key={`${participant.userId}-${index}`}
-                                                sx={{
-                                                    p: 2,
-                                                    mb: 1,
-                                                    bgcolor: '#FAFAFA',
-                                                    borderRadius: 1,
-                                                    border: '1px solid #E0E0E0'
-                                                }}
-                                            >
-                                                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                                                    {index + 1}. {participant.userName}
-                                                </Typography>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    {participant.email}
-                                                </Typography>
+                                    {stats.expensesByParticipant.length > 0 ? (
+                                        <Box sx={{ height: 320 }}>
+                                            {/* Lista de participantes con fotos */}
+                                            <Box sx={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: 2,
+                                                maxHeight: 320,
+                                                overflowY: 'auto',
+                                                pr: 1
+                                            }}>
+                                                {stats.expensesByParticipant.map((participant, index) => {
+                                                    // Buscar la foto del participante
+                                                    const participantData = stats.participantsList.find(
+                                                        p => p.id === participant.userId
+                                                    );
+
+                                                    // Calcular porcentaje del total
+                                                    const totalExpenses = stats.expensesByParticipant.reduce(
+                                                        (sum, p) => sum + p.totalSpent, 0
+                                                    );
+                                                    const percentage = (participant.totalSpent / totalExpenses) * 100;
+
+                                                    return (
+                                                        <Box
+                                                            key={participant.userId}
+                                                            sx={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: 2,
+                                                                p: 2,
+                                                                bgcolor: '#FAFAFA',
+                                                                borderRadius: 2,
+                                                                border: '1px solid #E0E0E0',
+                                                                transition: 'all 0.2s',
+                                                                '&:hover': {
+                                                                    transform: 'translateX(4px)',
+                                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                                                                    borderColor: '#03a9f4'
+                                                                }
+                                                            }}
+                                                            title={participantData?.email || ''}
+                                                        >
+                                                            {/* Avatar con foto de perfil */}
+                                                            <Avatar
+                                                                src={participantData?.profilePicture || undefined}
+                                                                sx={{
+                                                                    width: 48,
+                                                                    height: 48,
+                                                                    border: '2px solid #03a9f4',
+                                                                    bgcolor: '#03a9f4'
+                                                                }}
+                                                            >
+                                                                {participant.userName[0]}
+                                                            </Avatar>
+
+                                                            {/* Información del participante */}
+                                                            <Box sx={{ flex: 1 }}>
+                                                                <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242', mb: 0.5 }}>
+                                                                    {participant.userName}
+                                                                </Typography>
+                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                                                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#03a9f4' }}>
+                                                                        {formatCurrency(participant.totalSpent, stats.currency)}
+                                                                    </Typography>
+                                                                    <Chip
+                                                                        label={`${percentage.toFixed(1)}%`}
+                                                                        size="small"
+                                                                        sx={{
+                                                                            bgcolor: '#E3F2FD',
+                                                                            color: '#1976D2',
+                                                                            fontWeight: 600,
+                                                                            fontSize: '0.7rem'
+                                                                        }}
+                                                                    />
+                                                                </Box>
+                                                                <Typography variant="caption" color="text.secondary">
+                                                                    {participant.expenseCount} {participant.expenseCount === 1 ? 'gasto' : 'gastos'}
+                                                                </Typography>
+
+                                                                {/* Barra de progreso */}
+                                                                <Box sx={{ mt: 1, width: '100%', height: 8, bgcolor: '#E0E0E0', borderRadius: 1, overflow: 'hidden' }}>
+                                                                    <Box sx={{
+                                                                        width: `${percentage}%`,
+                                                                        height: '100%',
+                                                                        bgcolor: '#03a9f4',
+                                                                        transition: 'width 0.5s ease'
+                                                                    }} />
+                                                                </Box>
+                                                            </Box>
+                                                        </Box>
+                                                    );
+                                                })}
                                             </Box>
-                                        ))}
-                                    </Box>
+                                        </Box>
+                                    ) : (
+                                        <Box sx={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                No hay datos disponibles
+                                            </Typography>
+                                        </Box>
+                                    )}
                                 </Paper>
                             </Box>
                         </Box>
