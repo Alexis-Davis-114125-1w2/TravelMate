@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Trip } from '../../types/trip';
 import { api, API_BASE_URL, getAuthHeaders } from '../../lib/api';
+import { toast } from 'react-toastify';
 import {
   Box,
   Container,
@@ -512,7 +513,8 @@ export default function DashboardPage() {
           setTrips(tripsWithParticipants);
         }
         
-        //TODO mensaje de exito
+        // Mensaje de éxito
+        toast.success('¡Te has unido al viaje exitosamente!');
       } else {
         const errorText = await response.text();
         console.error('Error al unirse al viaje:', errorText);

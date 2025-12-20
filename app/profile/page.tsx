@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     Box,
     Container,
@@ -14,6 +15,14 @@ import {
     CircularProgress,
     Divider,
     Backdrop,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Stepper,
+    Step,
+    StepLabel,
+    InputAdornment,
 } from '@mui/material';
 import {
     ArrowBack,
@@ -22,6 +31,9 @@ import {
     Person,
     Email,
     DeleteOutline,
+    VpnKey,
+    Warning,
+    Logout,
 } from '@mui/icons-material';
 
 interface UserData {
@@ -33,9 +45,12 @@ interface UserData {
 }
 
 export default function ProfileEditPage() {
+    const router = useRouter();
+    
     // Estados del formulario
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const [originalEmail, setOriginalEmail] = useState('');
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [userId, setUserId] = useState<number | null>(null);
@@ -46,7 +61,22 @@ export default function ProfileEditPage() {
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // Estados para cambio de email
+    const [emailChangeStep, setEmailChangeStep] = useState(0); // 0: nuevo email, 1: código, 2: confirmado
+    const [newEmail, setNewEmail] = useState('');
+    const [emailCode, setEmailCode] = useState('');
+    const [emailLoading, setEmailLoading] = useState(false);
+    const [openEmailDialog, setOpenEmailDialog] = useState(false);
+    const [canResendEmail, setCanResendEmail] = useState(false);
+    const [resendEmailTimer, setResendEmailTimer] = useState(0);
+
+    // Estados para eliminación de cuenta
+    const [openDeleteAccountDialog, setOpenDeleteAccountDialog] = useState(false);
+    const [deletingAccount, setDeletingAccount] = useState(false);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const emailSteps = ['Nuevo email', 'Verificar código', 'Confirmar cambio'];
 
     // Cargar datos del usuario desde localStorage
     useEffect(() => {
@@ -60,6 +90,7 @@ export default function ProfileEditPage() {
                     setUserId(userData.id);
                     setName(userData.name || '');
                     setEmail(userData.email || '');
+                    setOriginalEmail(userData.email || '');
 
                     // Cargar la foto desde el API
                     if (token) {
@@ -128,22 +159,21 @@ export default function ProfileEditPage() {
         setProfileImage(null);
     };
 
-    // Manejar guardado
+    // Timer para reenvío de código de email
+    useEffect(() => {
+        if (resendEmailTimer > 0) {
+            const timer = setTimeout(() => setResendEmailTimer(resendEmailTimer - 1), 1000);
+            return () => clearTimeout(timer);
+        } else if (resendEmailTimer === 0 && emailChangeStep === 1) {
+            setCanResendEmail(true);
+        }
+    }, [resendEmailTimer, emailChangeStep]);
+
+    // Manejar guardado (solo nombre e imagen, email se cambia por separado)
     const handleSave = async () => {
         // Validaciones
         if (!name.trim()) {
             setError('El nombre es obligatorio');
-            return;
-        }
-
-        if (!email.trim()) {
-            setError('El email es obligatorio');
-            return;
-        }
-
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            setError('El formato del email no es válido');
             return;
         }
 
@@ -168,7 +198,7 @@ export default function ProfileEditPage() {
                 },
                 body: JSON.stringify({
                     name: name.trim(),
-                    email: email.trim(),
+                    email: originalEmail, // Mantener el email original
                     profilePictureUrl: profileImage,
                 }),
             });
@@ -187,7 +217,6 @@ export default function ProfileEditPage() {
                 const updatedUserData = {
                     ...userData,
                     name: updatedUser.name,
-                    email: updatedUser.email,
                 };
                 localStorage.setItem('userData', JSON.stringify(updatedUserData));
             }
@@ -202,6 +231,197 @@ export default function ProfileEditPage() {
             setError(err.message || 'Error al guardar los cambios. Intenta de nuevo.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Iniciar cambio de email
+    const handleInitiateEmailChange = async () => {
+        if (!newEmail.trim()) {
+            setError('El nuevo email es obligatorio');
+            return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(newEmail)) {
+            setError('El formato del email no es válido');
+            return;
+        }
+
+        if (newEmail === originalEmail) {
+            setError('El nuevo email debe ser diferente al actual');
+            return;
+        }
+
+        setEmailLoading(true);
+        setError(null);
+
+        try {
+            const token = localStorage.getItem('authToken');
+            const response = await fetch('http://localhost:8080/api/profile/email/change/initiate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ newEmail: newEmail.trim() }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setEmailChangeStep(1);
+                setCanResendEmail(false);
+                setResendEmailTimer(60);
+            } else {
+                setError(data.error || 'Error al enviar el código');
+            }
+        } catch (err) {
+            setError('Error de conexión. Intenta nuevamente.');
+        } finally {
+            setEmailLoading(false);
+        }
+    };
+
+    // Verificar código de cambio de email
+    const handleVerifyEmailCode = async () => {
+        if (!emailCode.trim()) {
+            setError('El código es obligatorio');
+            return;
+        }
+
+        setEmailLoading(true);
+        setError(null);
+
+        try {
+            const token = localStorage.getItem('authToken');
+            const response = await fetch('http://localhost:8080/api/profile/email/change/verify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ code: emailCode.trim() }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setEmailChangeStep(2);
+            } else {
+                setError(data.error || 'Código inválido');
+            }
+        } catch (err) {
+            setError('Error de conexión. Intenta nuevamente.');
+        } finally {
+            setEmailLoading(false);
+        }
+    };
+
+    // Confirmar cambio de email
+    const handleConfirmEmailChange = async () => {
+        setEmailLoading(true);
+        setError(null);
+
+        try {
+            const token = localStorage.getItem('authToken');
+            const response = await fetch('http://localhost:8080/api/profile/email/change/confirm', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ code: emailCode.trim() }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Actualizar email en localStorage
+                const currentUserData = localStorage.getItem('userData');
+                if (currentUserData) {
+                    const userData = JSON.parse(currentUserData);
+                    userData.email = newEmail;
+                    localStorage.setItem('userData', JSON.stringify(userData));
+                }
+                
+                setEmail(newEmail);
+                setOriginalEmail(newEmail);
+                setOpenEmailDialog(false);
+                setEmailChangeStep(0);
+                setNewEmail('');
+                setEmailCode('');
+                setSuccess(true);
+                setTimeout(() => setSuccess(false), 3000);
+            } else {
+                setError(data.error || 'Error al confirmar el cambio de email');
+            }
+        } catch (err) {
+            setError('Error de conexión. Intenta nuevamente.');
+        } finally {
+            setEmailLoading(false);
+        }
+    };
+
+    // Reenviar código de email
+    const handleResendEmailCode = async () => {
+        setEmailLoading(true);
+        setError(null);
+
+        try {
+            const token = localStorage.getItem('authToken');
+            const response = await fetch('http://localhost:8080/api/profile/email/change/initiate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ newEmail: newEmail.trim() }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setCanResendEmail(false);
+                setResendEmailTimer(60);
+                setEmailCode('');
+            } else {
+                setError(data.error || 'Error al reenviar el código');
+            }
+        } catch (err) {
+            setError('Error de conexión. Intenta nuevamente.');
+        } finally {
+            setEmailLoading(false);
+        }
+    };
+
+    // Eliminar cuenta
+    const handleDeleteAccount = async () => {
+        setDeletingAccount(true);
+        setError(null);
+
+        try {
+            const token = localStorage.getItem('authToken');
+            const response = await fetch('http://localhost:8080/api/profile/account', {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Limpiar localStorage y redirigir
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userData');
+                router.push('/login');
+            } else {
+                setError(data.error || 'Error al eliminar la cuenta');
+                setDeletingAccount(false);
+            }
+        } catch (err) {
+            setError('Error de conexión. Intenta nuevamente.');
+            setDeletingAccount(false);
         }
     };
 
@@ -370,14 +590,29 @@ export default function ProfileEditPage() {
 
                         {/* Email Field */}
                         <Box>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#424242', mb: 1 }}>
-                                Email
-                            </Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: '#424242' }}>
+                                    Email
+                                </Typography>
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => {
+                                        setOpenEmailDialog(true);
+                                        setEmailChangeStep(0);
+                                        setNewEmail('');
+                                        setEmailCode('');
+                                    }}
+                                    sx={{ textTransform: 'none' }}
+                                >
+                                    Cambiar Email
+                                </Button>
+                            </Box>
                             <TextField
                                 fullWidth
                                 type="email"
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                disabled
                                 placeholder="tu@email.com"
                                 variant="outlined"
                                 InputProps={{
@@ -389,12 +624,6 @@ export default function ProfileEditPage() {
                                     '& .MuiOutlinedInput-root': {
                                         borderRadius: 2,
                                         bgcolor: '#FAFAFA',
-                                        '&:hover': {
-                                            bgcolor: '#F5F5F5',
-                                        },
-                                        '&.Mui-focused': {
-                                            bgcolor: 'white',
-                                        },
                                     },
                                 }}
                             />
@@ -477,7 +706,238 @@ export default function ProfileEditPage() {
                             Solo tú puedes ver y editar esta información
                         </Typography>
                     </Paper>
+
+                    {/* Sección de eliminación de cuenta */}
+                    <Paper sx={{
+                        p: 4,
+                        mt: 3,
+                        borderRadius: 2,
+                        boxShadow: 'none',
+                        border: '1px solid #FFEBEE',
+                        bgcolor: '#FFF5F5',
+                    }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                            <Warning sx={{ color: '#f44336', fontSize: 28 }} />
+                            <Box>
+                                <Typography variant="h6" sx={{ fontWeight: 600, color: '#424242' }}>
+                                    Zona de Peligro
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: '#666' }}>
+                                    Acciones irreversibles
+                                </Typography>
+                            </Box>
+                        </Box>
+                        <Divider sx={{ my: 2 }} />
+                        <Typography variant="body2" sx={{ color: '#666', mb: 2 }}>
+                            Si eliminas tu cuenta, se perderán todos tus datos de forma permanente. Esta acción no se puede deshacer.
+                        </Typography>
+                        <Button
+                            variant="outlined"
+                            color="error"
+                            startIcon={<DeleteOutline />}
+                            onClick={() => setOpenDeleteAccountDialog(true)}
+                            sx={{ textTransform: 'none' }}
+                        >
+                            Eliminar Cuenta Permanentemente
+                        </Button>
+                    </Paper>
                 </Box>
+
+                {/* Dialog para cambio de email */}
+                <Dialog
+                    open={openEmailDialog}
+                    onClose={() => {
+                        if (!emailLoading) {
+                            setOpenEmailDialog(false);
+                            setEmailChangeStep(0);
+                            setNewEmail('');
+                            setEmailCode('');
+                            setError(null);
+                        }
+                    }}
+                    maxWidth="sm"
+                    fullWidth
+                >
+                    <DialogTitle>
+                        Cambiar Email
+                    </DialogTitle>
+                    <DialogContent>
+                        <Stepper activeStep={emailChangeStep} sx={{ mb: 3, mt: 2 }}>
+                            {emailSteps.map((label) => (
+                                <Step key={label}>
+                                    <StepLabel>{label}</StepLabel>
+                                </Step>
+                            ))}
+                        </Stepper>
+
+                        {error && (
+                            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                                {error}
+                            </Alert>
+                        )}
+
+                        {emailChangeStep === 0 && (
+                            <Box>
+                                <Typography variant="body2" sx={{ mb: 2, color: '#666' }}>
+                                    Se enviará un código de verificación a tu email actual: <strong>{originalEmail}</strong>
+                                </Typography>
+                                <TextField
+                                    fullWidth
+                                    label="Nuevo email"
+                                    type="email"
+                                    value={newEmail}
+                                    onChange={(e) => setNewEmail(e.target.value)}
+                                    disabled={emailLoading}
+                                    margin="normal"
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <Email />
+                                            </InputAdornment>
+                                        ),
+                                    }}
+                                />
+                            </Box>
+                        )}
+
+                        {emailChangeStep === 1 && (
+                            <Box>
+                                <Typography variant="body2" sx={{ mb: 2, color: '#666' }}>
+                                    Ingresa el código que enviamos a <strong>{originalEmail}</strong>
+                                </Typography>
+                                <TextField
+                                    fullWidth
+                                    label="Código de verificación"
+                                    value={emailCode}
+                                    onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    disabled={emailLoading}
+                                    margin="normal"
+                                    inputProps={{
+                                        maxLength: 6,
+                                        style: { textAlign: 'center', fontSize: '1.5rem', letterSpacing: '0.5rem' }
+                                    }}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <VpnKey />
+                                            </InputAdornment>
+                                        ),
+                                    }}
+                                    helperText="Revisa tu email. El código expira en 15 minutos."
+                                />
+                                <Box sx={{ textAlign: 'center', my: 2 }}>
+                                    {canResendEmail ? (
+                                        <Button
+                                            onClick={handleResendEmailCode}
+                                            disabled={emailLoading}
+                                            size="small"
+                                            sx={{ textTransform: 'none' }}
+                                        >
+                                            ¿No recibiste el código? Reenviar
+                                        </Button>
+                                    ) : (
+                                        <Typography variant="body2" color="text.secondary">
+                                            Podrás reenviar el código en {resendEmailTimer}s
+                                        </Typography>
+                                    )}
+                                </Box>
+                            </Box>
+                        )}
+
+                        {emailChangeStep === 2 && (
+                            <Box>
+                                <Alert severity="success" sx={{ mb: 2 }}>
+                                    Código verificado correctamente. ¿Confirmas el cambio de email a <strong>{newEmail}</strong>?
+                                </Alert>
+                            </Box>
+                        )}
+                    </DialogContent>
+                    <DialogActions>
+                        <Button
+                            onClick={() => {
+                                setOpenEmailDialog(false);
+                                setEmailChangeStep(0);
+                                setNewEmail('');
+                                setEmailCode('');
+                                setError(null);
+                            }}
+                            disabled={emailLoading}
+                        >
+                            Cancelar
+                        </Button>
+                        {emailChangeStep === 0 && (
+                            <Button
+                                variant="contained"
+                                onClick={handleInitiateEmailChange}
+                                disabled={emailLoading || !newEmail.trim()}
+                                startIcon={emailLoading ? <CircularProgress size={16} /> : null}
+                            >
+                                {emailLoading ? 'Enviando...' : 'Enviar Código'}
+                            </Button>
+                        )}
+                        {emailChangeStep === 1 && (
+                            <Button
+                                variant="contained"
+                                onClick={handleVerifyEmailCode}
+                                disabled={emailLoading || !emailCode.trim() || emailCode.length !== 6}
+                                startIcon={emailLoading ? <CircularProgress size={16} /> : null}
+                            >
+                                {emailLoading ? 'Verificando...' : 'Verificar Código'}
+                            </Button>
+                        )}
+                        {emailChangeStep === 2 && (
+                            <Button
+                                variant="contained"
+                                color="success"
+                                onClick={handleConfirmEmailChange}
+                                disabled={emailLoading}
+                                startIcon={emailLoading ? <CircularProgress size={16} /> : null}
+                            >
+                                {emailLoading ? 'Confirmando...' : 'Confirmar Cambio'}
+                            </Button>
+                        )}
+                    </DialogActions>
+                </Dialog>
+
+                {/* Dialog para eliminar cuenta */}
+                <Dialog
+                    open={openDeleteAccountDialog}
+                    onClose={() => !deletingAccount && setOpenDeleteAccountDialog(false)}
+                    maxWidth="sm"
+                    fullWidth
+                >
+                    <DialogTitle sx={{ color: 'error.main', fontWeight: 600 }}>
+                        Eliminar Cuenta Permanentemente
+                    </DialogTitle>
+                    <DialogContent>
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            Esta acción no se puede deshacer
+                        </Alert>
+                        <Typography variant="body1" sx={{ mb: 2 }}>
+                            ¿Estás seguro que deseas eliminar tu cuenta?
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Se eliminarán todos tus datos, viajes, y toda la información asociada a tu cuenta de forma permanente.
+                        </Typography>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button
+                            onClick={() => setOpenDeleteAccountDialog(false)}
+                            disabled={deletingAccount}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            variant="contained"
+                            color="error"
+                            startIcon={deletingAccount ? <CircularProgress size={16} color="inherit" /> : <DeleteOutline />}
+                            onClick={handleDeleteAccount}
+                            disabled={deletingAccount}
+                        >
+                            {deletingAccount ? 'Eliminando...' : 'Eliminar Cuenta'}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
             </Container>
         </Box>
     );

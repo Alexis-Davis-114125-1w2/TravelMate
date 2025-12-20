@@ -112,6 +112,7 @@ import {
   Save,
   ShoppingCart,
   FilterList,
+  ExitToApp,
 } from '@mui/icons-material';
 
 interface TripDetails {
@@ -271,6 +272,10 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [deletingTrip, setDeletingTrip] = useState(false);
 
+  // Salirse del viaje
+  const [openLeaveTripDialog, setOpenLeaveTripDialog] = useState(false);
+  const [leavingTrip, setLeavingTrip] = useState(false);
+
   // Debug: Log cuando cambien los tips
   useEffect(() => {
     console.log('🔍 Tips cambiaron:', tips.length, tips);
@@ -428,6 +433,39 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     } finally {
       setDeletingTrip(false);
       setOpenDeleteDialog(false);
+    }
+  };
+
+  // Salirse del viaje
+  const handleLeaveTrip = async () => {
+    if (!trip?.id || !user?.id) return;
+
+    try {
+      setLeavingTrip(true);
+      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/trips/${trip.id}/leave?userId=${userId}`,
+        {
+          method: 'DELETE',
+          headers: getAuthHeaders(),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success('Te has salido del viaje exitosamente');
+        router.push('/dashboard'); // Redirigir al dashboard
+      } else {
+        toast.error(data.message || 'Error al salirse del viaje');
+      }
+    } catch (error) {
+      console.error('Error saliéndose del viaje:', error);
+      toast.error('Error de conexión al salirse del viaje');
+    } finally {
+      setLeavingTrip(false);
+      setOpenLeaveTripDialog(false);
     }
   };
 
@@ -4291,10 +4329,14 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
+  // Verificar si el usuario es el único admin
+  const isOnlyAdmin = trip && trip.adminIds && trip.adminIds.length === 1 && trip.adminIds.includes(Number(user?.id));
+
   const actions = [
     { icon: <Edit />, name: 'Editar Viaje', action: () => router.push(`/trip/${tripId}/edit`) },
     { icon: <PersonAdd />, name: 'Agregar Miembros', action: () => router.push(`/trip/${tripId}/add-users`) },
     { icon: <Share />, name: 'Compartir', action: () => setOpenShareDialog(true), show: true },
+    { icon: <ExitToApp />, name: 'Salirse del Viaje', action: () => setOpenLeaveTripDialog(true), show: !isOnlyAdmin },
     { icon: <Delete />, name: 'Eliminar Viaje', action: () => setOpenDeleteDialog(true), show: isUserAdmin },
   ];
 
@@ -6754,6 +6796,46 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
             disabled={deletingTrip}
           >
             {deletingTrip ? 'Eliminando...' : 'Eliminar Viaje'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog para confirmar salirse del viaje */}
+      <Dialog
+        open={openLeaveTripDialog}
+        onClose={() => !leavingTrip && setOpenLeaveTripDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ color: 'warning.main', fontWeight: 600 }}>
+          Salirse del Viaje
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Esta acción no se puede deshacer
+          </Alert>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            ¿Estás seguro que deseas salirte del viaje <strong>{trip?.name}</strong>?
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Ya no tendrás acceso a este viaje ni a su información. Si eres administrador, asegúrate de que haya otro administrador antes de salirte.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button
+            onClick={() => setOpenLeaveTripDialog(false)}
+            disabled={leavingTrip}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            startIcon={leavingTrip ? <CircularProgress size={16} color="inherit" /> : <ExitToApp />}
+            onClick={handleLeaveTrip}
+            disabled={leavingTrip}
+          >
+            {leavingTrip ? 'Saliendo...' : 'Salirse del Viaje'}
           </Button>
         </DialogActions>
       </Dialog>
