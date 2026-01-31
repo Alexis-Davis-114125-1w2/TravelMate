@@ -88,7 +88,8 @@ import {
   Foggy,
   Person,
   HelpOutline,
-  Gavel
+  Gavel,
+  Edit
 } from '@mui/icons-material';
 
 interface TripWithParticipants extends Trip {
@@ -121,6 +122,11 @@ export default function DashboardPage() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tripToDelete, setTripToDelete] = useState<TripWithParticipants | null>(null);
+  const [editNameDialogOpen, setEditNameDialogOpen] = useState(false);
+  const [tripToEdit, setTripToEdit] = useState<TripWithParticipants | null>(null);
+  const [newTripName, setNewTripName] = useState('');
+  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [menuTripId, setMenuTripId] = useState<number | null>(null);
   const [currentTime, setCurrentTime] = useState(getCurrentTime());
   const [viewMode, setViewMode] = useState<'gallery' | 'list'>('gallery');
   const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
@@ -523,6 +529,87 @@ export default function DashboardPage() {
     } catch (err) {
       console.error('Error al unirse al viaje:', err);
       setError('Error de conexión. Por favor, intenta de nuevo.');
+    }
+  };
+
+  // Funciones para el menú de opciones
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, tripId: number) => {
+    event.stopPropagation();
+    setMenuAnchorEl(event.currentTarget);
+    setMenuTripId(tripId);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchorEl(null);
+    setMenuTripId(null);
+  };
+
+  // Función para abrir diálogo de editar nombre
+  const handleEditNameClick = (trip: TripWithParticipants) => {
+    setTripToEdit(trip);
+    setNewTripName(trip.name);
+    setEditNameDialogOpen(true);
+    handleMenuClose();
+  };
+
+  // Función para guardar el nuevo nombre
+  const handleSaveTripName = async () => {
+    if (!tripToEdit || !newTripName.trim() || !user?.id) return;
+
+    try {
+      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+      
+      // Usar el nuevo endpoint PATCH para actualizar solo el nombre
+      const response = await fetch(`${API_BASE_URL}/api/trips/${tripToEdit.id}/name?userId=${userId}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ name: newTripName.trim() }),
+      });
+
+      if (response.ok) {
+        setTrips(trips.map(t => 
+          t.id === tripToEdit.id ? { ...t, name: newTripName.trim() } : t
+        ));
+        toast.success('Nombre del viaje actualizado');
+        setEditNameDialogOpen(false);
+        setTripToEdit(null);
+        setNewTripName('');
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.message || 'No se pudo actualizar el nombre del viaje');
+      }
+    } catch (err) {
+      console.error('Error al actualizar nombre:', err);
+      toast.error('Error al actualizar el nombre del viaje');
+    }
+  };
+
+  // Función para abrir diálogo de eliminar
+  const handleDeleteClick = (trip: TripWithParticipants) => {
+    setTripToDelete(trip);
+    setDeleteDialogOpen(true);
+    handleMenuClose();
+  };
+
+  // Función para confirmar eliminación
+  const handleConfirmDelete = async () => {
+    if (!tripToDelete || !user?.id) return;
+
+    try {
+      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+      const response = await api.deleteTrip(tripToDelete.id.toString(), userId);
+
+      if (response.ok) {
+        setTrips(trips.filter(t => t.id !== tripToDelete.id));
+        toast.success('Viaje eliminado exitosamente');
+        setDeleteDialogOpen(false);
+        setTripToDelete(null);
+      } else {
+        toast.error('No se pudo eliminar el viaje');
+      }
+    } catch (err) {
+      console.error('Error al eliminar viaje:', err);
+      toast.error('Error al eliminar el viaje');
     }
   };
 
@@ -1284,6 +1371,21 @@ export default function DashboardPage() {
                       }}
                     >
                       <Box sx={{ position: 'relative', zIndex: 1, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                        {/* Botón de menú de opciones */}
+                        <IconButton
+                          size="small"
+                          onClick={(e) => handleMenuOpen(e, trip.id)}
+                          sx={{
+                            position: 'absolute',
+                            top: -8,
+                            right: -8,
+                            color: pastelColor.text,
+                            bgcolor: 'rgba(255,255,255,0.7)',
+                            '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' },
+                          }}
+                        >
+                          <MoreVert fontSize="small" />
+                        </IconButton>
                           
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                           <Avatar sx={{ 
@@ -1503,7 +1605,18 @@ export default function DashboardPage() {
                                 </Typography>
                               </Box>
                             </Box>
-                            <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => handleMenuOpen(e, trip.id)}
+                                sx={{
+                                  color: pastelColor.text,
+                                  bgcolor: 'rgba(255,255,255,0.5)',
+                                  '&:hover': { bgcolor: 'rgba(255,255,255,0.8)' },
+                                }}
+                              >
+                                <MoreVert fontSize="small" />
+                              </IconButton>
                               <Button
                                 size="small"
                                 variant="outlined"
@@ -1734,6 +1847,116 @@ export default function DashboardPage() {
             disabled={!tripCode.trim()}
           >
             Unirme
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Menu de opciones del viaje */}
+      <Menu
+        anchorEl={menuAnchorEl}
+        open={Boolean(menuAnchorEl)}
+        onClose={handleMenuClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        <MenuItem onClick={() => {
+          const trip = trips.find(t => t.id === menuTripId);
+          if (trip) handleEditNameClick(trip);
+        }}>
+          <ListItemIcon>
+            <Edit fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Cambiar nombre</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => {
+          const trip = trips.find(t => t.id === menuTripId);
+          if (trip) handleDeleteClick(trip);
+        }} sx={{ color: 'error.main' }}>
+          <ListItemIcon>
+            <Delete fontSize="small" sx={{ color: 'error.main' }} />
+          </ListItemIcon>
+          <ListItemText>Eliminar viaje</ListItemText>
+        </MenuItem>
+      </Menu>
+
+      {/* Dialog para editar nombre del viaje */}
+      <Dialog
+        open={editNameDialogOpen}
+        onClose={() => {
+          setEditNameDialogOpen(false);
+          setTripToEdit(null);
+          setNewTripName('');
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Cambiar nombre del viaje</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Nuevo nombre"
+            value={newTripName}
+            onChange={(e) => setNewTripName(e.target.value)}
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => {
+            setEditNameDialogOpen(false);
+            setTripToEdit(null);
+            setNewTripName('');
+          }}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveTripName}
+            disabled={!newTripName.trim() || newTripName.trim() === tripToEdit?.name}
+          >
+            Guardar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog para confirmar eliminación */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setTripToDelete(null);
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ color: 'error.main' }}>Eliminar viaje</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            ¿Estás seguro de que deseas eliminar el viaje <strong>"{tripToDelete?.name}"</strong>?
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Esta acción no se puede deshacer. Se eliminarán todos los datos asociados al viaje.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => {
+            setDeleteDialogOpen(false);
+            setTripToDelete(null);
+          }}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleConfirmDelete}
+          >
+            Eliminar
           </Button>
         </DialogActions>
       </Dialog>
