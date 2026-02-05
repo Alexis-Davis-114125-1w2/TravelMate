@@ -61,8 +61,15 @@ export default function CreateTripPage() {
   const [description, setDescription] = useState('');
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
-  const [dateI, setDateI] = useState('');
-  const [dateF, setDateF] = useState('');
+  const [dateI, setDateI] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  const [dateF, setDateF] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [cost, setCost] = useState('');
   const [currency, setCurrency] = useState<'PESOS' | 'DOLARES' | 'EUROS'>('PESOS');
   const [imageFile, setImageFile] = useState<File | null>(null);
