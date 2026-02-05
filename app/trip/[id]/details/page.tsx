@@ -276,9 +276,9 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
   const [openLeaveTripDialog, setOpenLeaveTripDialog] = useState(false);
   const [leavingTrip, setLeavingTrip] = useState(false);
 
-  // Debug: Log cuando cambien los tips
+  // Efecto cuando cambian los tips (sin logs de debug)
   useEffect(() => {
-    console.log('🔍 Tips cambiaron:', tips.length, tips);
+    // Tips actualizados silenciosamente
   }, [tips]);
 
   // Referencias
@@ -4148,22 +4148,17 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
         placeId: tip.place_id || tip.id // Guardar place_id para poder detectar duplicados
       };
 
-      console.log('💾 Intentando guardar tip:', tipData);
       const response = await api.createTip(trip?.id?.toString() || '', tipData, user?.email || 'usuario@ejemplo.com');
 
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ Tip guardado en base de datos:', result.data);
         return result.data;
       } else {
-        const errorText = await response.text();
-        console.error('❌ Error guardando tip:', response.status, response.statusText, errorText);
-        toast.error(`Error guardando tip: ${response.statusText}`);
+        // Error silencioso - no mostrar toast para evitar múltiples notificaciones
         return null;
       }
-    } catch (error) {
-      console.error('❌ Error guardando tip:', error);
-      toast.error(`Error de conexión: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } catch {
+      // Error de conexión manejado silenciosamente
       return null;
     }
   };
@@ -4174,14 +4169,11 @@ Responde de manera natural, útil y conversacional (2-5 frases):`;
       const response = await api.getTipsByTrip(trip?.id?.toString() || '');
       if (response.ok) {
         const result = await response.json();
-        console.log('📥 Tips cargados desde base de datos:', result.data);
         return result.data || [];
       } else {
-        console.error('❌ Error cargando tips:', response.statusText);
         return [];
       }
-    } catch (error) {
-      console.error('❌ Error cargando tips:', error);
+    } catch {
       return [];
     }
   };

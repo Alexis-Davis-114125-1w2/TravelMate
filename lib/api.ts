@@ -11,8 +11,8 @@ export const isBackendAvailable = async (): Promise<boolean> => {
       },
     });
     return response.ok;
-  } catch (error) {
-    console.error('❌ Backend no disponible:', error);
+  } catch {
+    // Silenciosamente retornar false si el backend no está disponible
     return false;
   }
 };
@@ -27,8 +27,8 @@ export const checkBackendConnection = async () => {
       },
     });
     return response.ok;
-  } catch (error) {
-    console.error('❌ Backend no disponible:', error);
+  } catch {
+    // Silenciosamente retornar false si el backend no está disponible
     return false;
   }
 };
@@ -101,10 +101,6 @@ export const api = {
       formData.append('image',imageFile);
     }
     
-    console.log('Enviando request a /api/trips/add con token:', token ? 'Presente' : 'Ausente');
-    console.log('Token completo:', token);
-    console.log('FormData contents:', Array.from(formData.entries()));
-    
     const response = await fetch(`${API_BASE_URL}/api/trips/add?userId=${userId}`, {
       method: 'POST',
       headers: headers,
@@ -119,9 +115,8 @@ export const api = {
         headers: getAuthHeaders(),
       });
       return response;
-    } catch (error) {
-      console.error('❌ Error en getUserTrips:', error);
-      throw new Error('No se pudo conectar con el servidor. Verifica que el backend esté ejecutándose en http://localhost:8080');
+    } catch {
+      throw new Error('No se pudo conectar con el servidor');
     }
   },
 
@@ -172,23 +167,18 @@ export const api = {
   // Tips
   createTip: async (tripId: string, tipData: any, userEmail: string) => {
     try {
-      console.log('🔗 Creando tip:', { tripId, tipData, userEmail });
-      console.log('🔗 URL:', `${API_BASE_URL}/api/tips/trip/${tripId}?userEmail=${encodeURIComponent(userEmail)}`);
-      
       const response = await fetch(`${API_BASE_URL}/api/tips/trip/${tripId}?userEmail=${encodeURIComponent(userEmail)}`, {
         method: 'POST',
         headers: {
-          ...getAuthHeaders(), // Agregar headers de autenticación
+          ...getAuthHeaders(),
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(tipData),
       });
       
-      console.log('🔗 Respuesta del servidor:', response.status, response.statusText);
       return response;
-    } catch (error) {
-      console.error('❌ Error en createTip:', error);
-      throw new Error(`No se pudo conectar con el servidor: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } catch {
+      throw new Error('No se pudo conectar con el servidor');
     }
   },
 

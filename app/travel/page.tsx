@@ -117,12 +117,10 @@ export default function CreateTripPage() {
       script.async = true;
       script.defer = true;
       script.onerror = () => {
-        console.error('Error cargando Google Maps');
         toast.error('Error al cargar Google Maps. Verifica tu conexión a internet.');
       };
       
       window.initGoogleMaps = () => {
-        console.log('Google Maps cargado exitosamente');
         setIsGoogleMapsLoaded(true);
       };
       
@@ -463,45 +461,31 @@ export default function CreateTripPage() {
         transportMode: selectedVehicle
       };
 
-      console.log('Nuevo viaje a guardar en BD:', tripData);
-      console.log('User ID:', userId, 'Type:', typeof userId);
-      console.log('Fechas - dateI:', dateI, 'dateF:', dateF);
-      console.log('Fechas válidas:', dateI && dateF);
-      
       // Llamada al backend usando la función de API
       const response = await api.createTrip(tripData, parseInt(userId),imageFile);
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-
       if (response.ok) {
-        const result = await response.json();
-        console.log('Viaje creado exitosamente:', result);
+        await response.json();
         toast.success('¡Viaje creado exitosamente!');
         router.push('/dashboard');
       } else {
         // Manejar diferentes tipos de errores
         if (response.status === 302 || response.status === 303) {
-          console.error('Error de redirección del servidor');
           toast.error('Error: El servidor está redirigiendo. Verifica que estés autenticado correctamente.');
         } else if (response.status === 401) {
-          console.error('Error de autenticación');
           toast.error('Error: No estás autenticado. Por favor, inicia sesión nuevamente.');
           router.push('/login');
         } else {
           try {
             const errorData = await response.json();
-            console.error('Error del servidor:', errorData);
             toast.error(`Error al crear el viaje: ${errorData.message || 'Error desconocido'}`);
-          } catch (parseError) {
-            console.error('Error al parsear respuesta:', parseError);
+          } catch {
             toast.error(`Error del servidor (${response.status}): ${response.statusText}`);
           }
         }
       }
       
-    } catch (error) {
-      console.error('Error al crear el viaje:', error);
+    } catch {
       toast.error('Hubo un error al crear el viaje. Inténtalo de nuevo.');
     } finally {
       setIsSubmitting(false);

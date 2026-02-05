@@ -3,7 +3,7 @@
 import { useAuth } from '../../hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api } from '../../lib/api';
+import { api, API_BASE_URL, getAuthHeaders } from '../../lib/api';
 import {
   Box,
   Container,
@@ -97,6 +97,7 @@ export default function StatsPage() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalParticipantsSum, setTotalParticipantsSum] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -133,6 +134,49 @@ export default function StatsPage() {
     if (isAuthenticated && user) {
       fetchStats();
     }
+  }, [isAuthenticated, user]);
+
+  // Calcular suma de participantes de todos los viajes (el backend puede devolver 0)
+  useEffect(() => {
+    const fetchTotalParticipants = async () => {
+      if (!user?.id || !isAuthenticated) return;
+
+      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+      if (isNaN(userId)) return;
+
+      try {
+        const tripsResponse = await api.getUserTrips(userId);
+        if (!tripsResponse.ok) return;
+
+        const trips = await tripsResponse.json();
+        if (!Array.isArray(trips) || trips.length === 0) {
+          setTotalParticipantsSum(0);
+          return;
+        }
+
+        let sum = 0;
+        for (const trip of trips) {
+          try {
+            const res = await fetch(
+              `${API_BASE_URL}/api/trips/${trip.id}/participants?userId=${userId}`,
+              { headers: getAuthHeaders() }
+            );
+            if (res.ok) {
+              const data = await res.json();
+              const count = data.total ?? data.data?.length ?? 0;
+              sum += count;
+            }
+          } catch {
+            // ignorar error por viaje
+          }
+        }
+        setTotalParticipantsSum(sum);
+      } catch {
+        setTotalParticipantsSum(null);
+      }
+    };
+
+    fetchTotalParticipants();
   }, [isAuthenticated, user]);
 
   if (isLoading || loadingStats) {
@@ -316,7 +360,7 @@ export default function StatsPage() {
                 </CardContent>
               </Card>
 
-              {/* 6. Participantes Totales */}
+              {/* 6. Participantes Totales (suma de todos los viajes) */}
               <Card sx={{ 
                 height: '100%',
                 background: 'linear-gradient(135deg, #66bb6a 0%, #81c784 100%)',
@@ -329,7 +373,7 @@ export default function StatsPage() {
                     Participantes Totales
                   </Typography>
                   <Typography variant="h4" component="div" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    {stats.totalParticipants}
+                    {totalParticipantsSum !== null ? totalParticipantsSum : stats.totalParticipants}
                   </Typography>
                   <Typography variant="caption" sx={{ opacity: 0.8, fontSize: '0.75rem' }}>
                     En todos tus viajes

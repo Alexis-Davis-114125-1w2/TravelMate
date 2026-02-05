@@ -239,8 +239,6 @@ export default function DashboardPage() {
                   
                   const description = weatherCodes[weatherCode] || 'Despejado';
                   
-                  console.log('Clima obtenido:', { temp, code: weatherCode, description, fullData: data.current });
-                  
                   setWeather({
                     temp,
                     description,
@@ -256,8 +254,7 @@ export default function DashboardPage() {
                   code: 0,
                 });
                 }
-              } catch (error) {
-                console.error('Error al obtener clima:', error);
+              } catch {
                 // Si falla, usar datos de ejemplo
                 setWeather({
                   temp: 22,
@@ -269,8 +266,7 @@ export default function DashboardPage() {
                 setLoadingWeather(false);
               }
             },
-            (error) => {
-              console.error('Error al obtener ubicación:', error);
+            () => {
               // Usar datos de ejemplo si no se puede obtener la ubicación
               setWeather({
                 temp: 22,
@@ -291,8 +287,7 @@ export default function DashboardPage() {
           });
           setLoadingWeather(false);
         }
-      } catch (error) {
-        console.error('Error al cargar clima:', error);
+      } catch {
         setLoadingWeather(false);
       }
     };
@@ -356,14 +351,13 @@ export default function DashboardPage() {
                       const detailsData = await detailsResponse.json();
                       origin = detailsData.origin || null;
                     }
-                  } catch (detailsErr) {
-                    console.error(`Error al obtener detalles del viaje ${trip.id}:`, detailsErr);
+                  } catch {
+                    // Silenciosamente ignorar errores al obtener detalles
                   }
                 }
 
                 return { ...trip, participantCount, origin: origin || trip.origin };
-              } catch (err) {
-                console.error(`Error al obtener datos del viaje ${trip.id}:`, err);
+              } catch {
                 return { ...trip, participantCount: trip.participants || 0 };
               }
             })
@@ -371,28 +365,23 @@ export default function DashboardPage() {
           
           setTrips(tripsWithParticipants);
         } else {
-          console.error('Error al cargar viajes - Status:', response.status);
-          console.error('Error al cargar viajes - StatusText:', response.statusText);
-          
           let errorMessage = 'No se pudieron cargar los viajes. Por favor, intenta de nuevo.';
           
           try {
-            const errorText = await response.text();
-            console.error('Error al cargar viajes:', errorText);
+            await response.text();
             
             if (response.status === 404) {
-              errorMessage = 'El servidor backend no está disponible. Verifica que esté ejecutándose en el puerto 8080.';
+              errorMessage = 'El servidor backend no está disponible.';
             } else if (response.status === 401) {
               errorMessage = 'Error de autenticación. Por favor, inicia sesión nuevamente.';
             }
-          } catch (parseError) {
-            console.error('Error al parsear respuesta del servidor:', parseError);
+          } catch {
+            // Ignorar errores de parseo
           }
           
           setError(errorMessage);
         }
-      } catch (err) {
-        console.error('Error al cargar viajes:', err);
+      } catch {
         setError('Error de conexión. Verifica que el servidor esté funcionando.');
       } finally {
         setLoadingTrips(false);
@@ -440,8 +429,8 @@ export default function DashboardPage() {
               }));
               allPurchasesData.push(...purchases);
             }
-          } catch (error) {
-            console.error(`Error cargando compras del viaje ${trip.id}:`, error);
+          } catch {
+            // Ignorar errores al cargar compras de un viaje específico
           }
         }
 
@@ -453,8 +442,8 @@ export default function DashboardPage() {
         });
 
         setAllPurchases(allPurchasesData);
-      } catch (error) {
-        console.error('Error cargando compras:', error);
+      } catch {
+        // Ignorar errores al cargar compras
       } finally {
         setLoadingPurchases(false);
       }
@@ -522,12 +511,9 @@ export default function DashboardPage() {
         // Mensaje de éxito
         toast.success('¡Te has unido al viaje exitosamente!');
       } else {
-        const errorText = await response.text();
-        console.error('Error al unirse al viaje:', errorText);
         setError('No se pudo unir al viaje. Verifica el código e intenta de nuevo.');
       }
-    } catch (err) {
-      console.error('Error al unirse al viaje:', err);
+    } catch {
       setError('Error de conexión. Por favor, intenta de nuevo.');
     }
   };
@@ -578,8 +564,7 @@ export default function DashboardPage() {
         const errorData = await response.json().catch(() => ({}));
         toast.error(errorData.message || 'No se pudo actualizar el nombre del viaje');
       }
-    } catch (err) {
-      console.error('Error al actualizar nombre:', err);
+    } catch {
       toast.error('Error al actualizar el nombre del viaje');
     }
   };
@@ -607,8 +592,7 @@ export default function DashboardPage() {
       } else {
         toast.error('No se pudo eliminar el viaje');
       }
-    } catch (err) {
-      console.error('Error al eliminar viaje:', err);
+    } catch {
       toast.error('Error al eliminar el viaje');
     }
   };
@@ -656,8 +640,7 @@ export default function DashboardPage() {
         month: 'long', 
         year: 'numeric'
       });
-    } catch (error) {
-      console.error('Error al formatear fecha:', error, dateString);
+    } catch {
       return 'Fecha inválida';
     }
   };
