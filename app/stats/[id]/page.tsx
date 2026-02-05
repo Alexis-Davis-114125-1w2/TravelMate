@@ -139,6 +139,12 @@ export default function TripStatsPage() {
     const [stats, setStats] = useState<TripStats | null>(null);
     const [loadingStats, setLoadingStats] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [participantsWithPhotos, setParticipantsWithPhotos] = useState<Array<{
+        id: number;
+        userName: string;
+        email: string;
+        profilePicture: string;
+    }> | null>(null);
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
@@ -146,56 +152,38 @@ export default function TripStatsPage() {
         }
     }, [isAuthenticated, isLoading, router]);
 
-    // Cargar fotos de perfil de participantes de estadísticas
+    // Cargar fotos de perfil en estado aparte para no re-renderizar gráficos
     useEffect(() => {
         const loadParticipantPhotosFromStats = async () => {
-            if (!stats || !stats.participantsList || stats.participantsList.length === 0) return;
+            if (!stats?.participantsList?.length) return;
 
             try {
-                const participantsWithPhotos = await Promise.all(
+                const withPhotos = await Promise.all(
                     stats.participantsList.map(async (participant) => {
-                        // Si ya tiene foto, no hacer nada
-                        if (participant.profilePicture) {
-                            return participant;
-                        }
+                        if (participant.profilePicture) return participant;
                         try {
                             const photoResponse = await fetch(
                                 `${API_BASE_URL}/api/profile/${participant.id}/photo`,
                                 { headers: getAuthHeaders() }
                             );
-
                             if (photoResponse.ok) {
                                 const photoUrl = await photoResponse.text();
                                 return { ...participant, profilePicture: photoUrl };
                             }
-                        } catch (photoErr) {
-                            console.error(`Error cargando foto de ${participant.userName}:`, photoErr);
+                        } catch {
+                            // ignorar
                         }
-
                         return participant;
                     })
                 );
-
-                // Actualizar stats con las fotos
-                setStats(prevStats => {
-                    if (!prevStats) return null;
-                    return {
-                        ...prevStats,
-                        participantsList: participantsWithPhotos
-                    };
-                });
-            } catch (error) {
-                console.error('Error cargando fotos de participantes:', error);
+                setParticipantsWithPhotos(withPhotos);
+            } catch {
+                setParticipantsWithPhotos(stats.participantsList);
             }
         };
 
-        // Esperar un poco para que las estadísticas se carguen primero
-        const timer = setTimeout(() => {
-            loadParticipantPhotosFromStats();
-        }, 1000);
-
-        return () => clearTimeout(timer);
-    }, [stats?.participantsList]); // Solo cuando cambie el número de participantes
+        loadParticipantPhotosFromStats();
+    }, [stats?.tripId, stats?.participantsList?.length]);
 
 
     useEffect(() => {
@@ -211,6 +199,7 @@ export default function TripStatsPage() {
 
                 if (response.ok) {
                     const data = await response.json();
+                    setParticipantsWithPhotos(null);
                     setStats(data);
                 } else {
                     const errorText = await response.text();
@@ -489,7 +478,7 @@ export default function TripStatsPage() {
                                                     }}
                                                 />
                                                 <Legend />
-                                                <Bar dataKey="gasto" fill="#ab47bc" radius={[8, 8, 0, 0]} name="Gasto del día" />
+                                                <Bar dataKey="gasto" fill="#ab47bc" radius={[8, 8, 0, 0]} name="Gasto del día" isAnimationActive={false} />
                                             </BarChart>
                                         </ResponsiveContainer>
                                     ) : (
@@ -512,21 +501,19 @@ export default function TripStatsPage() {
                                         <PieChart>
                                             <Pie
                                                 data={[
-                                                    { name: 'Billetera General Restante', value: stats.currentGeneralBalance },
-                                                    { name: 'Billetera General Usada', value: stats.initialGeneralBudget - stats.currentGeneralBalance },
-                                                    { name: 'Mi Billetera Restante', value: stats.userCurrentPersonalBalance },
-                                                    { name: 'Mi Billetera Usada', value: stats.userInitialPersonalBudget - stats.userCurrentPersonalBalance },
+                                                    { name: 'Billetera General Restante', value: Math.max(0, stats.currentGeneralBalance), fill: '#03a9f4' },
+                                                    { name: 'Billetera General Usada', value: Math.max(0, stats.initialGeneralBudget - stats.currentGeneralBalance), fill: '#0288d1' },
+                                                    { name: 'Mi Billetera Restante', value: Math.max(0, stats.userCurrentPersonalBalance), fill: '#66bb6a' },
+                                                    { name: 'Mi Billetera Usada', value: Math.max(0, stats.userInitialPersonalBudget - stats.userCurrentPersonalBalance), fill: '#43a047' },
                                                 ]}
                                                 cx="50%"
-                                                cy="50%"
+                                                cy="45%"
+                                                innerRadius={0}
+                                                outerRadius={90}
                                                 labelLine={false}
-                                                label={({ name, percent }) => {
-                                                    if (!percent || percent === 0) return '';
-                                                    return `${name}: ${(percent * 100).toFixed(0)}%`;
-                                                }}
-                                                outerRadius={100}
-                                                fill="#8884d8"
+                                                label={false}
                                                 dataKey="value"
+                                                isAnimationActive={false}
                                             >
                                                 <Cell fill="#03a9f4" />
                                                 <Cell fill="#0288d1" />
@@ -534,6 +521,7 @@ export default function TripStatsPage() {
                                                 <Cell fill="#43a047" />
                                             </Pie>
                                             <Tooltip formatter={(value: number) => formatCurrency(value, stats.currency)} />
+                                            <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ paddingTop: 12 }} />
                                         </PieChart>
                                     </ResponsiveContainer>
                                 </Paper>
@@ -613,12 +601,13 @@ export default function TripStatsPage() {
                                                             labelLine={false}
                                                             label={(props: any) => {
                                                                 const { percentage } = props;
-                                                                if (!percentage || percentage < 5) return ''; // Solo mostrar si es mayor al 5%
+                                                                if (!percentage || percentage < 5) return '';
                                                                 return `${percentage?.toFixed(0)}%`;
                                                             }}
                                                             outerRadius={80}
                                                             fill="#8884d8"
                                                             dataKey="totalAmount"
+                                                            isAnimationActive={false}
                                                         >
                                                             {stats.expensesByCategory.map((entry, index) => (
                                                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -747,196 +736,194 @@ export default function TripStatsPage() {
                             </Box>
 
                             {/* 5. Gastos Generales por Participante (quien PAGÓ) - GRÁFICO DE BARRAS */}
-<Box>
-    <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
-            Gastos Generales por Participante
-        </Typography>
-        <Typography variant="caption" sx={{ display: 'block', mb: 2, color: 'text.secondary' }}>
-            Quién pagó los gastos de la billetera general
-        </Typography>
-        {stats.expensesByParticipant && stats.expensesByParticipant.length > 0 ? (
-            <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={stats.expensesByParticipant} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
-                    <XAxis type="number" stroke="#666" />
-                    <YAxis dataKey="userName" type="category" stroke="#666" width={100} />
-                    <Tooltip formatter={(value: number) => formatCurrency(value, stats.currency)} />
-                    <Bar dataKey="totalSpent" fill="#03a9f4" radius={[0, 8, 8, 0]} name="Gastado" />
-                </BarChart>
-            </ResponsiveContainer>
-        ) : (
-            <Box sx={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                    No hay gastos generales
-                </Typography>
-            </Box>
-        )}
-    </Paper>
-</Box>
-
-{/* 6. Lista de Gastos Generales por Participante */}
-<Box>
-    <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
-            Detalle de Gastos Generales
-        </Typography>
-        <Typography variant="caption" sx={{ display: 'block', mb: 2, color: 'text.secondary' }}>
-            Participantes que pagaron gastos de la billetera general
-        </Typography>
-        {stats.expensesByParticipant && stats.expensesByParticipant.length > 0 ? (
-            <Box sx={{ height: 320 }}>
-                <Box sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 2,
-                    maxHeight: 320,
-                    overflowY: 'auto',
-                    pr: 1
-                }}>
-                    {stats.expensesByParticipant.map((participant, index) => {
-                        const participantData = stats.participantsList?.find(
-                            p => p.id === participant.userId
-                        );
-
-                        const totalExpenses = stats.expensesByParticipant.reduce(
-                            (sum, p) => sum + (p.totalSpent || 0), 0
-                        );
-                        const percentage = totalExpenses > 0 
-                            ? ((participant.totalSpent || 0) / totalExpenses) * 100 
-                            : 0;
-
-                        return (
-                            <Box
-                                key={`general-${participant.userId}-${index}`}
-                                sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 2,
-                                    p: 2,
-                                    bgcolor: '#E3F2FD',
-                                    borderRadius: 2,
-                                    border: '1px solid #03a9f4',
-                                    transition: 'all 0.2s',
-                                    '&:hover': {
-                                        transform: 'translateX(4px)',
-                                        boxShadow: '0 2px 8px rgba(3,169,244,0.3)',
-                                    }
-                                }}
-                            >
-                                <Avatar
-                                    src={participantData?.profilePicture || undefined}
-                                    sx={{
-                                        width: 48,
-                                        height: 48,
-                                        border: '2px solid #03a9f4',
-                                        bgcolor: '#03a9f4'
-                                    }}
-                                >
-                                    {(participant.userName || 'U')[0].toUpperCase()}
-                                </Avatar>
-
-                                <Box sx={{ flex: 1 }}>
-                                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242', mb: 0.5 }}>
-                                        {participant.userName || 'Usuario Desconocido'}
+                            <Box>
+                                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
+                                        Gastos Generales por Participante
                                     </Typography>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#03a9f4' }}>
-                                            {formatCurrency(participant.totalSpent || 0, stats.currency)}
-                                        </Typography>
-                                        <Chip
-                                            label={`${percentage.toFixed(1)}%`}
-                                            size="small"
-                                            sx={{
-                                                bgcolor: '#03a9f4',
-                                                color: 'white',
-                                                fontWeight: 600,
-                                                fontSize: '0.7rem'
-                                            }}
-                                        />
-                                    </Box>
-                                    <Typography variant="caption" color="text.secondary">
-                                        Pagó {participant.expenseCount || 0} {(participant.expenseCount || 0) === 1 ? 'gasto general' : 'gastos generales'}
+                                    <Typography variant="caption" sx={{ display: 'block', mb: 2, color: 'text.secondary' }}>
+                                        Quién pagó los gastos de la billetera general
                                     </Typography>
-
-                                    <Box sx={{ mt: 1, width: '100%', height: 8, bgcolor: '#E0E0E0', borderRadius: 1, overflow: 'hidden' }}>
-                                        <Box sx={{
-                                            width: `${Math.min(percentage, 100)}%`,
-                                            height: '100%',
-                                            bgcolor: '#03a9f4',
-                                            transition: 'width 0.5s ease'
-                                        }} />
-                                    </Box>
-                                </Box>
+                                    {stats.expensesByParticipant && stats.expensesByParticipant.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height={320}>
+                                            <BarChart data={stats.expensesByParticipant} layout="vertical">
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                                                <XAxis type="number" stroke="#666" />
+                                                <YAxis dataKey="userName" type="category" stroke="#666" width={100} />
+                                                <Tooltip formatter={(value: number) => formatCurrency(value, stats.currency)} />
+                                                <Bar dataKey="totalSpent" fill="#03a9f4" radius={[0, 8, 8, 0]} name="Gastado" isAnimationActive={false} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <Box sx={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                No hay gastos generales
+                                            </Typography>
+                                        </Box>
+                                    )}
+                                </Paper>
                             </Box>
-                        );
-                    })}
-                </Box>
-            </Box>
-        ) : (
-            <Box sx={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                    No hay gastos generales
-                </Typography>
-            </Box>
-        )}
-    </Paper>
-</Box>
 
-{/* 7. NUEVO - Top Días Más Gastados INDIVIDUALES */}
-<Box>
-    <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
-            Mis Días Más Gastados (Individual)
-        </Typography>
-        <Typography variant="caption" sx={{ display: 'block', mb: 2, color: 'text.secondary' }}>
-            Gastos de tu billetera personal
-        </Typography>
-        {stats.topIndividualExpensiveDays && stats.topIndividualExpensiveDays.length > 0 ? (
-            <TableContainer sx={{ maxHeight: 320, overflow: 'auto' }}>
-                <Table size="small">
-                    <TableHead>
-                        <TableRow>
-                            <TableCell sx={{ fontWeight: 600 }}>Día</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Fecha</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>Gasto Personal</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {stats.topIndividualExpensiveDays.map((day, index) => (
-                            <TableRow key={day.date} sx={{ '&:nth-of-type(odd)': { bgcolor: '#F1F8E9' } }}>
-                                <TableCell>
-                                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                        #{index + 1} - Día {day.dayNumber}
+                            {/* 6. Lista de Gastos Generales por Participante */}
+                            <Box>
+                                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
+                                        Detalle de Gastos Generales
                                     </Typography>
-                                </TableCell>
-                                <TableCell>
-                                    <Typography variant="body2">
-                                        {formatDate(day.date)}
+                                    <Typography variant="caption" sx={{ display: 'block', mb: 2, color: 'text.secondary' }}>
+                                        Participantes que pagaron gastos de la billetera general
                                     </Typography>
-                                </TableCell>
-                                <TableCell align="right">
-                                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#66bb6a' }}>
-                                        {formatCurrency(day.totalExpense, stats.currency)}
+                                    {stats.expensesByParticipant && stats.expensesByParticipant.length > 0 ? (
+                                        <Box sx={{ height: 320 }}>
+                                            <Box sx={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: 2,
+                                                maxHeight: 320,
+                                                overflowY: 'auto',
+                                                pr: 1
+                                            }}>
+                                                {stats.expensesByParticipant.map((participant, index) => {
+                                                    const list = participantsWithPhotos ?? stats.participantsList;
+                                                    const participantData = list?.find(p => p.id === participant.userId);
+                                                    const totalExpenses = stats.expensesByParticipant.reduce(
+                                                        (sum, p) => sum + (p.totalSpent || 0), 0
+                                                    );
+                                                    const percentage = totalExpenses > 0
+                                                        ? ((participant.totalSpent || 0) / totalExpenses) * 100
+                                                        : 0;
+
+                                                    return (
+                                                        <Box
+                                                            key={`general-${participant.userId}-${index}`}
+                                                            sx={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: 2,
+                                                                p: 2,
+                                                                bgcolor: '#E3F2FD',
+                                                                borderRadius: 2,
+                                                                border: '1px solid #03a9f4',
+                                                                transition: 'all 0.2s',
+                                                                '&:hover': {
+                                                                    transform: 'translateX(4px)',
+                                                                    boxShadow: '0 2px 8px rgba(3,169,244,0.3)',
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Avatar
+                                                                src={participantData?.profilePicture || undefined}
+                                                                sx={{
+                                                                    width: 48,
+                                                                    height: 48,
+                                                                    border: '2px solid #03a9f4',
+                                                                    bgcolor: '#03a9f4'
+                                                                }}
+                                                            >
+                                                                {(participant.userName || 'U')[0].toUpperCase()}
+                                                            </Avatar>
+
+                                                            <Box sx={{ flex: 1 }}>
+                                                                <Typography variant="body1" sx={{ fontWeight: 600, color: '#424242', mb: 0.5 }}>
+                                                                    {participant.userName || 'Usuario Desconocido'}
+                                                                </Typography>
+                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                                                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#03a9f4' }}>
+                                                                        {formatCurrency(participant.totalSpent || 0, stats.currency)}
+                                                                    </Typography>
+                                                                    <Chip
+                                                                        label={`${percentage.toFixed(1)}%`}
+                                                                        size="small"
+                                                                        sx={{
+                                                                            bgcolor: '#03a9f4',
+                                                                            color: 'white',
+                                                                            fontWeight: 600,
+                                                                            fontSize: '0.7rem'
+                                                                        }}
+                                                                    />
+                                                                </Box>
+                                                                <Typography variant="caption" color="text.secondary">
+                                                                    Pagó {participant.expenseCount || 0} {(participant.expenseCount || 0) === 1 ? 'gasto general' : 'gastos generales'}
+                                                                </Typography>
+
+                                                                <Box sx={{ mt: 1, width: '100%', height: 8, bgcolor: '#E0E0E0', borderRadius: 1, overflow: 'hidden' }}>
+                                                                    <Box sx={{
+                                                                        width: `${Math.min(percentage, 100)}%`,
+                                                                        height: '100%',
+                                                                        bgcolor: '#03a9f4',
+                                                                        transition: 'width 0.5s ease'
+                                                                    }} />
+                                                                </Box>
+                                                            </Box>
+                                                        </Box>
+                                                    );
+                                                })}
+                                            </Box>
+                                        </Box>
+                                    ) : (
+                                        <Box sx={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                No hay gastos generales
+                                            </Typography>
+                                        </Box>
+                                    )}
+                                </Paper>
+                            </Box>
+
+                            {/* 7. Top Días Más Gastados INDIVIDUALES */}
+                            <Box>
+                                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', border: '1px solid #E0E0E0', height: '100%', minHeight: 400 }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#424242' }}>
+                                        Mis Días Más Gastados (Individual)
                                     </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                        {day.expenseCount} gastos
+                                    <Typography variant="caption" sx={{ display: 'block', mb: 2, color: 'text.secondary' }}>
+                                        Gastos de tu billetera personal
                                     </Typography>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-        ) : (
-            <Box sx={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                    No tienes gastos individuales
-                </Typography>
-            </Box>
-        )}
-    </Paper>
-</Box>
+                                    {stats.topIndividualExpensiveDays && stats.topIndividualExpensiveDays.length > 0 ? (
+                                        <TableContainer sx={{ maxHeight: 320, overflow: 'auto' }}>
+                                            <Table size="small">
+                                                <TableHead>
+                                                    <TableRow>
+                                                        <TableCell sx={{ fontWeight: 600 }}>Día</TableCell>
+                                                        <TableCell sx={{ fontWeight: 600 }}>Fecha</TableCell>
+                                                        <TableCell align="right" sx={{ fontWeight: 600 }}>Gasto Personal</TableCell>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {stats.topIndividualExpensiveDays.map((day: { date: string; dayNumber: number; totalExpense: number; expenseCount: number }, index: number) => (
+                                                        <TableRow key={day.date} sx={{ '&:nth-of-type(odd)': { bgcolor: '#F1F8E9' } }}>
+                                                            <TableCell>
+                                                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                                                    #{index + 1} - Día {day.dayNumber}
+                                                                </Typography>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Typography variant="body2">
+                                                                    {formatDate(day.date)}
+                                                                </Typography>
+                                                            </TableCell>
+                                                            <TableCell align="right">
+                                                                <Typography variant="body2" sx={{ fontWeight: 700, color: '#66bb6a' }}>
+                                                                    {formatCurrency(day.totalExpense, stats.currency)}
+                                                                </Typography>
+                                                                <Typography variant="caption" color="text.secondary">
+                                                                    {day.expenseCount} gastos
+                                                                </Typography>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </TableContainer>
+                                    ) : (
+                                        <Box sx={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                No tienes gastos individuales
+                                            </Typography>
+                                        </Box>
+                                    )}
+                                </Paper>
+                            </Box>
                         </Box>
                     </>
                 )}
